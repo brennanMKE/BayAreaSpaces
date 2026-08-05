@@ -273,8 +273,11 @@ This holds only while all of the following are true. They are the argument, not 
   everything above. The contact value is injected from `$MAKER_CALENDAR_CONTACT` so it stays
   out of git — see `.env.example`. **The loader must fail loudly if it is unset or still
   points at `example.com`.** A run with no real contact is a bug, not a degraded mode:
-  everything in this section depends on someone being able to reach us. Prefer a URL to an
-  about page over a bare address; that page is also where the one-email opt-out lives.
+  everything in this section depends on someone being able to reach us. The value is an
+  about-page URL, not an email, so no address is exposed in git, in a header, or in anyone's
+  access logs. **That page must resolve before the first run** — a UA pointing at a 404 is
+  worse than no contact, since it looks like a bot performing accountability. The page is
+  also where the one-email opt-out lives.
   Note that **launchd does not read your shell profile**, so the nightly job must load `.env`
   explicitly or carry the value in the plist's `EnvironmentVariables`.
 - **Fetch only the URLs in `sources.yaml`.** No crawling, no link-following, no sitemap
@@ -296,3 +299,14 @@ When emailing a space anyway, just ask. An explicit yes retires the question for
   so they are useless as event sources; the iCal feed does carry real dates but caps at 10
   events. Hacker Dojo is the one documented exception, because Meetup is its only surviving
   source — `events.hackerdojo.com` has returned Cloudflare 525 for over a year.
+
+## Issues
+
+Work is tracked in `issues/` as `NNNN.md` files, read by Issues.app. `issues/Issues.md` is the
+local guide — status vocabulary, commit conventions, and the claim → fix → build → commit →
+resolve workflow. `issues/` is tracked in git.
+
+**Never mark an issue `resolved` on the strength of a green build.** The "HTTP 200 is not
+success" rule applies to our own code too: an adapter is verified when it returns real, dated
+events from the live source and the count matches what the corresponding `spaces/*.md` file
+recorded. Only the user moves an issue to `closed`.
