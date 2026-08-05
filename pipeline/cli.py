@@ -10,7 +10,7 @@ costs nothing::
                         |     adapter -> normalize -> filter
                         |- dedupe across all spaces        (issue 0015)
                         |- enrich  <- the only model stage (issue 0029, not yet)
-                        |- health gates                    (issue 0016, not yet)
+                        |- health gates                    (issue 0016)
                         `- publish (out/, later Postgres) + health.json (0017)
 
 Spaces are sequenced one at a time. That is not a concession — it falls out of
@@ -60,10 +60,9 @@ program will do. Issue 0016 turns that instinct into real gates.
 
 **The exit code is the launchd log.** See :data:`EXIT_OK` and friends: 0 for a
 clean run, 2 for a configuration error, and :data:`EXIT_HEALTH_BLOCKED` when the
-health gates refuse publication. The gates themselves are issue 0016, so the
-seam in :func:`evaluate_health` returns "not blocked" today and the run exits 0;
-the branch that returns the non-zero code is already wired so 0016 only has to
-fill in the decision.
+health gates refuse publication. The gates are :mod:`pipeline.health` (issue
+0016) and they run *before* the emit step, so a blocked run writes nothing at
+all and yesterday's published files stand.
 
 **A failed source republishes rather than disappearing.** Issue 0014 opens the
 SQLite store at run start and hands it to the ``Fetcher``, which is what makes
@@ -111,6 +110,7 @@ from pipeline.dedupe import DedupeResult, dedupe, trust_map
 from pipeline.emit_ics import EmitResult, emit_ics
 from pipeline.fetch import FetchError, FetchResult, Fetcher, Outcome, request_url, source_label
 from pipeline.filters import filter_normalization
+from pipeline.health import HealthVerdict, evaluate_health
 from pipeline.normalize import Event, normalize_ics
 from pipeline.store import DEFAULT_DB_PATH, ReadOnlyStore, Store, open_store
 
@@ -572,45 +572,13 @@ class SourceRecord:
         return self.line()
 
 
-@dataclass(frozen=True)
-class HealthDecision:
-    """Whether the run may publish. **Issue 0016 fills this in.**
-
-    The seam exists now so the exit-code contract is real code rather than a
-    comment: :data:`EXIT_HEALTH_BLOCKED` is returned when
-    :attr:`blocks_publication` is true. Today nothing sets it, so a run that got
-    this far exits 0.
-    """
-
-    blocked: bool = False
-    reasons: tuple[str, ...] = ()
-    #: The issue that will make this decision mean something.
-    gate_issue: str = "0016"
-    implemented: bool = False
-
-    @property
-    def blocks_publication(self) -> bool:
-        return self.blocked
-
-    def as_dict(self) -> dict[str, Any]:
-        return {
-            "blocked": self.blocked,
-            "reasons": list(self.reasons),
-            "gate_issue": self.gate_issue,
-            "implemented": self.implemented,
-        }
-
-
-def evaluate_health(records: Sequence[SourceRecord]) -> HealthDecision:
-    """The health-gate seam. Returns "not blocked" until issue 0016 lands.
-
-    Deliberately not a stub that raises and not a lie that claims to have
-    checked: it reports ``implemented=False`` so ``health.json`` (issue 0017)
-    can say out loud that no gate ran tonight. Count-based gates alone are not
-    sufficient anyway — see the four cases in CLAUDE.md — and half a gate is
-    worse than a documented absence.
-    """
-    return HealthDecision(blocked=False, reasons=(), implemented=False)
+#: The verdict object, under the name the seam was originally given. Issue 0016
+#: filled the seam in, and :class:`~pipeline.health.HealthVerdict` is what fills
+#: it: same three fields the CLI ever read (``blocked``, ``reasons``,
+#: ``blocks_publication``), plus the per-source detail ``health.json`` needs.
+#: Kept as an alias rather than renamed at every call site, because the exit-code
+#: contract in issue 0012 is written against this name.
+HealthDecision = HealthVerdict
 
 
 @dataclass
@@ -1155,7 +1123,33 @@ def run_pipeline(
     LOG.info("enrich skipped: %s", report.enrich_skipped_reason)
 
     # --- health gates (issue 0016) -------------------------------------------
-    report.health = evaluate_health(report.records)
+    #
+    # Before anything is published, and after dedupe, so the totals the global
+    # gate compares are the totals that would actually be written. The verdict
+    # also returns the event set it audited — normalize already applied the
+    # sanity window and the title rules, so in a healthy run this is the same
+    # list; see pipeline/health.py for who owns what.
+    report.health = evaluate_health(
+        report.records,
+        events=report.events,
+        registry=registry,
+        store=store,
+        now=now,
+        run_id=report.run_id,
+        space_filter=space_id,
+    )
+    report.events = list(report.health.events)
+    if not dry_run and report.run_id is not None:
+        # The per-source verdict lands on the run row it belongs to, so
+        # "which gate fired on which night" survives the process.
+        for verdict in report.health.sources:
+            store.set_gate_outcome(
+                report.run_id,
+                verdict.space_id,
+                verdict.label,
+                blocked=verdict.blocked,
+                reasons=verdict.messages,
+            )
     if report.health.blocks_publication:
         # The contract, in code: a blocked publish exits non-zero so launchd's
         # log shows it. Nothing is written; yesterday's files stand.
@@ -1266,6 +1260,13 @@ def print_run_report(report: RunReport, stream: Any = None) -> None:
             f"health:  no gates ran (issue {report.health.gate_issue} implements them)",
             file=out,
         )
+    else:
+        print(f"health:  {report.health.line()}", file=out)
+        for reason in report.health.reasons:
+            print(f"  BLOCK: {reason}", file=out)
+        for alert in report.health.alerts:
+            if alert not in report.health.reasons:
+                print(f"  WARN:  {alert}", file=out)
     if report.emit is not None:
         print(
             f"emitted: {report.emit.event_count} events across "
@@ -1513,6 +1514,7 @@ __all__ = [
     "STAGING_DIRNAME",
     "AdapterEntry",
     "HealthDecision",
+    "HealthVerdict",
     "LmStudioStatus",
     "RunReport",
     "SourceRecord",

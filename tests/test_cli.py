@@ -576,10 +576,16 @@ def test_lm_studio_up_still_skips_enrich_until_issue_0029(env, tmp_path: Path, r
 # --------------------------------------------------------------------------- health
 
 
-def test_health_gates_are_a_declared_absence_not_a_silent_pass():
+def test_health_gates_run_and_say_so():
+    """Issue 0016 filled the seam in. The gates are real and they report it.
+
+    With no records and no store there is nothing to compare against, so the
+    honest answer is "not blocked" — but ``implemented`` is now true, and
+    ``health.json`` says gates ran rather than that none did.
+    """
     decision = evaluate_health([])
     assert decision.blocked is False
-    assert decision.implemented is False
+    assert decision.implemented is True
     assert decision.gate_issue == "0016"
 
 
@@ -587,7 +593,7 @@ def test_blocked_health_gates_exit_non_zero(env, tmp_path: Path, registry, monke
     """The contract issue 0016 inherits: a blocked publish is a non-zero exit."""
     monkeypatch.setattr(
         "pipeline.cli.evaluate_health",
-        lambda records: HealthDecision(
+        lambda records, **kwargs: HealthDecision(
             blocked=True, reasons=("global count dropped 62%",), implemented=True
         ),
     )
@@ -645,7 +651,8 @@ def test_run_records_are_structured_and_json_ready(env, tmp_path: Path, registry
     payload = json.loads(json.dumps(report.as_dict()))
     assert payload["counts"]["sources"] == 2
     assert payload["counts"]["events"] == 2
-    assert payload["health"]["implemented"] is False
+    assert payload["health"]["implemented"] is True
+    assert payload["health"]["blocked"] is False
     assert len(payload["sources"]) == 2
 
     record = payload["sources"][0]
