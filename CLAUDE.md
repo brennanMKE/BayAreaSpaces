@@ -240,13 +240,27 @@ Two further rules from the same survey:
   site always outranks an aggregator.
 - Research findings go in `spaces/<space-id>.md`, one file per space, on the shared
   template. Record dead ends — they stop the next person repeating the search.
-- Adapters in use: `ics`, `gcal_ics`, `tribe_rest`, `jsonld`, `nextdata`, `json`, `rss`,
-  `bookwhen_html`, `llm_html`. Only `llm_html` involves a model; everything else is
-  deterministic. Add new adapter names to the header comment in `sources.yaml`.
+- Adapters in use: `ics`, `gcal_ics`, `tribe_rest`, `jsonld`, `nextdata`, `embedded_json`,
+  `json`, `rss`, `bookwhen_html`, `llm_html`. Only `llm_html` involves a model; everything
+  else is deterministic. Add new adapter names to the header comment in `sources.yaml`.
 - **`robots.txt` disallow means we do not fetch it** — not that we find an equivalent route.
   The Box Shop disallows `?format=json` and `?format=ical` while allowing `?format=rss`, and
   the RSS route happens to be sufficient. If a permitted route were *not* sufficient, the
   answer is to ask the space, not to work around the file.
+- **Read each host's `robots.txt` on its own terms.** They are not interchangeable: The Box
+  Shop's AI-agent group collapses into a no-op, while `lower48.org` gives ClaudeBot,
+  anthropic-ai, GPTBot, CCBot and 21 others their own `Disallow: /`.
+
+### Open question: do AI-agent disallows bind this pipeline?
+
+`lower48.org` disallows named AI agents but permits `*`. The pipeline is a plain HTTP
+fetcher with an honest User-Agent and a contact address, directed by a human — so the letter
+of the file permits it, but switching User-Agent to step around a block aimed at AI agents is
+exactly the route-around the rule above forbids.
+
+**Until this is settled, treat an AI-agent disallow as blocking and ask the space directly.**
+That is consistent with the good-citizen section and costs one email. Lower 48 has no feed to
+collect anyway, so nothing is lost by being conservative while the question is open.
 - Meetup is excluded by default: the open API is retired, what remains is OAuth-gated
   GraphQL behind a paid Pro subscription, and scraping the client-rendered pages violates
   their ToS. Their *published* feed endpoints are a separate question and were tested per

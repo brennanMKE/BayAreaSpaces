@@ -10,6 +10,10 @@
 #   tribe_rest     The Events Calendar WP REST API
 #   jsonld         parse schema.org/Event from embedded <script type=application/ld+json>
 #   nextdata       parse __NEXT_DATA__ blob (Eventbrite organizer pages)
+#   embedded_json  named <script type="application/json" id=...> blob in a
+#                  server-rendered page, plus a field map. Generalizes nextdata
+#                  (which is nextdata with script_id hardcoded); nextdata could
+#                  be reimplemented on top of it later. Needs `script_id`.
 #   json           plain JSON document with a bespoke shape + field mapping
 #   rss            RSS/Atom. Only an event source when items carry a real start
 #                  date; most do not. Otherwise change-detection only.
@@ -193,6 +197,198 @@ spaces:
     # commons@lists.omnicommons.org (Commons Working Group, meets 2nd & 4th Mon).
     # One toggle would cover every Omni collective including Counter Culture Labs,
     # which currently has no feed at all.
+
+  - id: the-crucible
+    name: The Crucible
+    city: Oakland
+    region: east-bay
+    url: https://www.thecrucible.org/
+    address_override: "1260 7th St, Oakland, CA 94607"
+    # MANDATORY: the class catalog carries no location field of any kind.
+    sources:
+      - adapter: embedded_json
+        url: https://www.thecrucible.org/course-search/
+        script_id: ac-course-data
+        label: course-catalog-blob
+        trust: 100
+        verified: true
+        notes: >
+          132 KB <script id="ac-course-data" type="application/json"> blob.
+          216 courses, 478 offerings, 271 inside 120 days. start_dates[] are
+          Unix epoch SECONDS, local America/Los_Angeles; decoding verified
+          against the product page's Class.Date attribute to the minute.
+          UID: {id}:{start_epoch}.
+          Each start_date is one RUN of a course, not one meeting - a 5-week
+          20-hour course is ONE entry, which is what a merged calendar wants.
+          Do NOT compute DTEND from `hours` (total course hours, not session
+          length) or you render 40-hour blocks.
+          Skip the 9 courses with an empty start_dates array.
+          /shop/ carries a byte-identical blob - do not ingest both.
+          There is NO XHR endpoint and NO server-side filtering: ?department=
+          and a bogus ?department=ZZZ return the identical 216-course blob.
+          All filtering is client-side JS.
+        # No filters required. This is the cleanest large catalog in the
+        # registry: no equipment checkouts, no orientations, no private
+        # rentals, no per-meeting duplication. ~68 offerings/month, comparable
+        # to Ace, not a Maker Nexus firehose. Published ~4.5 months ahead.
+        #
+        # OPTIONAL maker-only or adult-only views. Verbatim values 2026-08-05.
+        # NB the blob stores HTML entities: it is "Glass Fusing &amp; Slumping",
+        # never "Glass Fusing & Slumping". Unescape before matching.
+        # filters:
+        #   categories_exclude: ["Bike Shop"]          # `department` field
+        #   title_excludes: ["Youth "]                 # 6 of 271 in horizon
+      - adapter: json
+        url: https://www.thecrucible.org/wp-json/wc/store/v1/products
+        params: { per_page: 100, orderby: date }
+        label: woocommerce-store-api
+        trust: 90
+        verified: true
+        notes: >
+          353 products over 4 pages, 1531 pa_class-date terms, 274 inside 120
+          days - independently cross-validates the blob's 271.
+          CRITICAL: `orderby=date` IS REQUIRED. Without it the endpoint returns
+          HTTP 200 and valid JSON with X-WP-Total: 98 - 72% of the catalog
+          silently missing, covering only 40 of the blob's 216 live courses.
+          Paginate on X-WP-TotalPages; page=99 returns 200 with [], not an
+          error, so never paginate until-error.
+          Dates: attributes[].terms[].name as "MM/DD/YY H:MM am/pm" local.
+          DROP the literal sentinel "01/01/70 12:00 am" - naive %y parsing maps
+          it to 2070 and it sails past every horizon check.
+          Richer than the blob (description, prices, stock, permalink) but
+          categories are polluted with 60+ one-off per-product categories equal
+          to the class title - filter on the blob's `department`, never on this.
+      - adapter: nextdata
+        url: https://www.eventbrite.com/o/the-crucible-2700512180
+        label: eventbrite-organizer
+        trust: 70
+        verified: true
+        notes: >
+          7 events, all "Free Crucible Tour", 2026-08-20..2026-11-19. The ONLY
+          source for the free public tours and the only one carrying a location
+          (primary_venue.address, with lat/long). Real start_date + start_time
+          + timezone. Low volume; keep the rate limit.
+      - adapter: rss
+        url: https://www.thecrucible.org/category/upcoming-events/feed/
+        label: public-events-seed
+        trust: 20
+        verified: true
+        enabled: false
+        health:
+          allow_zero: true
+        notes: >
+          3 items. pubDate is the POST date, NOT the event date - dates live
+          only in the title text ("(JUL 16)") and the prose body. NOT an event
+          source. Correct use is as the seed list for llm_html over the linked
+          /event/<slug>/ pages, the only route to the public-events programme
+          (iron pours, artisan fairs, community rides). Filtering is real: a
+          bogus category returns 404 with 0 items.
+    # TRAPS, verified 2026-08-05 - do not wire these up:
+    #   /?post_type=tribe_events&ical=1 -> 200 text/html, a rendered 1.4 MB page.
+    #   /events/?ical=1                 -> 200 text/html, same page as /events/
+    #     modulo 20 cachebuster lines. A byte-compare says "different"; a
+    #     content-compare says "identical". Compare content.
+    #   /category/<bogus>/feed/         -> 404 but Content-Type is
+    #     application/rss+xml with a 1.35 MB HTML body. Here the HEADER lies -
+    #     earlier traps in this registry had lying bodies.
+    #   wc/store/v1/products WITHOUT orderby=date -> 200, valid JSON, 98 of 353
+    #     products. The worst kind: correct-looking and quietly amputated.
+    #
+    # The Events Calendar is NOT INSTALLED - every wp-json/tribe/* route 404s.
+    # The tribe-* class names on their pages are inert Avada compatibility CSS.
+    # Do not let those class names talk anyone into a tribe_rest source.
+    # No schema.org/Event anywhere. Product pages carry schema.org/Course with
+    # no startDate, no offers, no hasCourseInstance - a jsonld adapter would
+    # return empty forever without ever erroring.
+    # Also absent: Google Calendar, Luma, Meetup, Mastodon, Bluesky, and all 15
+    # arts-nonprofit booking/CRM platforms probed. Registration is in-house
+    # WooCommerce; the back office looks like Salesforce.
+    #
+    # LEAD: ask whether Salesforce holds per-MEETING session times. The website
+    # exposes only one start per multi-week run, so a 10-meeting class publishes
+    # as a single event. Right default for a merged calendar, but finer data
+    # exists somewhere.
+
+  - id: lower-48
+    name: Lower 48 Woodshop
+    city: Oakland
+    region: east-bay
+    url: https://www.lower48.org/
+    address_override: "1212 19th St, Oakland, CA 94607"
+    health:
+      allow_zero: true
+    notes: >
+      NO MACHINE-READABLE EVENT SOURCE EXISTS as of 2026-08-05. Verified, not
+      assumed - full probe list in spaces/lower-48.md. Squarespace site with NO
+      events collection (sitemap has 20 URLs, none of them events; /events,
+      /calendar, /blog, /news, /workshops all 404), only @type:WebSite JSON-LD,
+      zero iframes so no embedded gCal, and no Luma / Bookwhen / Sawyer / Acuity
+      / Punchpass / Calendly / Ticket Tailor / Meetup anywhere. Their own
+      Classes page says "Our classes are currently offered through Eventbrite" -
+      that organizer page is real and parseable but has upcomingEventsTotal: 0.
+      Tiny nonprofit woodturning SCHOOL, not a membership makerspace. Classes
+      cap at 4 students. Volume is very low and bursty, hence allow_zero.
+      CORRECTION to the discovery note: they are NOT in the NIMBY complex.
+      NIMBY closed 2019-09-30 and nimbyspace.org is a parked 503. Lower 48
+      started there in 2016 (the bottom of two stacked 48-ft shipping
+      containers - that is where the name comes from) and has long since moved
+      to 1212 19th St in West Oakland, inside an unnamed private fabrication
+      building that is explicitly not open to the public. Their own /about-us
+      page is stale and still describes NIMBY in the present tense.
+      ROBOTS - READ BEFORE FETCHING: www.lower48.org/robots.txt gives ClaudeBot,
+      anthropic-ai, GPTBot, CCBot and 21 others their own "Disallow: /" group.
+      This is NOT the collapsed no-op group seen on boxshopsf.org. Whether that
+      blocks this pipeline is an OPEN POLICY QUESTION - see CLAUDE.md. Until it
+      is settled, treat this space as ask-permission-first. ?format=json /
+      json-pretty / ical / page-context / main-content are Disallow'ed for
+      everyone; ?format=rss is allowed.
+    sources: []
+    # --- NOTHING IS WIRED UP. Do not enable anything below without a fresh
+    #     fetch returning a real, dated event, and not before the robots
+    #     question above is settled. ---
+    #
+    # BEST LEAD. Correct URL and correct adapter, both confirmed by fetching:
+    # __NEXT_DATA__ -> props.pageProps.organizer.name = "The Lower 48 Woodshop",
+    # id 14103153826, 328 followers. But upcomingEventsTotal = 0 and
+    # upcomingEvents = [] on 2026-08-05, confirmed twice with cache-busting.
+    # A stale search-engine title claims "2 Upcoming Activities" - it is wrong.
+    # Registered as nextdata, NOT jsonld: Eventbrite organizer pages no longer
+    # emit JSON-LD (same correction as humanmade).
+    # - adapter: nextdata
+    #   url: https://www.eventbrite.com/o/the-lower-48-woodshop-14103153826
+    #   label: eventbrite-organizer
+    #   trust: 100
+    #   verified: false
+    #   enabled: false
+    #   health: { require_nonzero_once: true, allow_zero: true }
+    #
+    # NOT EVENT SOURCES, both effectively abandoned:
+    #   /press-lower48?format=rss  -> 200, 3 items, pubDate is the POST date,
+    #     newest 2022-11-13. Keep only as a staleness tripwire.
+    #   youtube.com/feeds/videos.xml?channel_id=UCiSXxhDgphpZdw08d4BLAyA
+    #     -> 200, 12 entries, newest upload 2020-03-14.
+    #
+    # WHAT MUST HAPPEN FIRST, in order of leverage:
+    #   1. Ask Jolie Karno (jolie@lower48.org, cc hello@lower48.org) to keep
+    #      posting classes to the Eventbrite organizer above. The adapter is
+    #      already proven - the page is simply empty. One reply and one
+    #      scheduled class turns this space on. Ask about robots at the same
+    #      time; a yes settles it for this host.
+    #   2. Ask what the building at 1212 19th St is called and whether it runs
+    #      a tenant-wide calendar. Same shape as the Omni Commons Airtable lead
+    #      under sudo-room, and potentially worth several spaces.
+    #   3. Subscribe to the site newsletter (footer form on every page).
+    #   4. Failing all that, DM @lower48woodshop on Instagram - the only channel
+    #      with 2026 activity (last post 2026-02-14).
+    #
+    # Dead ends - do not re-investigate (all fetched 2026-08-05): lower48.org
+    # 301s to www; /?format=rss and /classes-lower48?format=rss -> 400 (pages,
+    # not collections); lu.ma/lower48{,woodshop} 404; bookwhen.com/lower48 404;
+    # meetup.com/lower48{,woodshop} 404; Bluesky and Mastodon handles 404;
+    # x.com/lower48woodshop 404 though still advertised on their Eventbrite
+    # profile; nimbyspace.org all paths -> 503 parking shim.
+    # ?format=ical deliberately NOT tested - robots.txt disallows it.
+    # Blocked, never read: Yelp (403), every.org (429), Etsy (403), Wayback CDX.
 
   # ---------------------------------------------------------------------- sf
 

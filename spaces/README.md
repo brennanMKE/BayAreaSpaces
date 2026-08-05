@@ -13,7 +13,9 @@ already failed.
 | Space | Region | Verified feeds | Tier | Notes |
 |---|---|---|---|---|
 | [Ace Makerspace](ace-makerspace.md) | east-bay | 3 (+7 category ICS) | A | Best source on the list. REST + ICS + JSON-LD, 92 upcoming. |
+| [The Crucible](the-crucible.md) | east-bay | 4 | B | Largest clean catalog: 271 in horizon, no filtering needed. |
 | [Sudo Room](sudo-room.md) | east-bay | 4 | A | 8 MB export, 73 in horizon. Stale address on every event. |
+| [Lower 48](lower-48.md) | east-bay | 0 | — | No feed exists. Eventbrite organizer is real but empty. |
 | [Noisebridge](noisebridge.md) | sf | 2 | A + C | No single source covers it. Wiki → RRULEs is the backbone. |
 | [Sequoia Fabrica](sequoia-fabrica.md) | sf | 2 | A + B | Bookwhen (public classes) and gCal (members) are disjoint — need both. |
 | [Frontier Tower](frontier-makerspace.md) | sf | 2 | A | One tower-wide calendar by policy. No per-floor feeds. |
@@ -59,6 +61,8 @@ lives at `feeds.calendar`.
 | Space | Contact | The ask |
 |---|---|---|
 | **Ace Makerspace** | `officers@acemakerspace.org`, attn Sylvia Gonzalez (Chair & CEO), cc `info@` | Nothing needed — their feeds work. "We're ingesting your public feeds correctly; tell us what to change or exclude." **Use this one as the demo for everyone else.** |
+| **The Crucible** | `info@thecrucible.org` attn Melissa Gray (Senior Programs Manager), cc `registrar@` | Their catalog already parses cleanly, so this is a courtesy plus one question: does Salesforce hold per-*meeting* session times? The site exposes one start per multi-week run. Friendly opener: their contact page's mailto is misspelled `registrar@thecrucibile.org`. Leadership is mid-transition — Doug Yeiser is *interim* ED, superseding the older Seth Steward announcement. |
+| **Lower 48** | Jolie Karno `jolie@lower48.org`, cc `hello@lower48.org`; Instagram `@lower48woodshop` is the only channel with 2026 activity | Two asks: keep posting classes to their Eventbrite organizer (the adapter is proven, the page is just empty), and what is the shared fabrication building at 1212 19th St called — does it run a tenant-wide calendar? Also ask permission explicitly: their robots.txt disallows AI agents by name. |
 | **Sudo Room** | `sudo-discuss@sudoroom.org` (open, publicly archived), cc `info@` | Data quality: every event carries the pre-2014 `549 48th St` address; the export ignores `scope`/`limit` and returns 8 MB expanded to 2058; `/event-request/` throws "Unauthorized Access" at the public. |
 | **Omni Commons** ⭐ | `commons@lists.omnicommons.org` (Commons WG, meets 2nd & 4th Mon 5pm) | **Highest leverage on the list.** Switch on Airtable's native iCal sync for the "Public Calendar" view. One toggle yields a Tier-A feed covering Sudo Room, Counter Culture Labs, Liberated Lens and the rest — and CCL has no feed at all today. |
 | **Noisebridge** | `secretary@noisebridge.net`, and the **Tuesday 7pm consensus meeting** (in person + Jitsi) | Put the standing weekly schedule into the existing Luma calendar as recurring events, and either revive or unpublish the dead "Noisebridge Daily" gCal their front page still embeds. No calendar owner exists by design, so the meeting is where this lands. Mailing lists are offline. |
@@ -71,16 +75,18 @@ lives at `feeds.calendar`.
 
 ## What this survey changed
 
-- **9 registry `TODO`s resolved to verified URLs**; one remains (the Sequoia Fabrica
-  Bookwhen token, obtainable only from their admin panel).
+- **11 spaces, 30 sources, 25 verified.** Nine registry `TODO`s resolved to verified URLs;
+  one remains (the Sequoia Fabrica Bookwhen token, obtainable only from their admin panel).
 - **Two `gcal_ics` stubs deleted** — the Sudo Room Google Calendars the brief described do
   not exist; that page embeds Airtable and WP-FullCalendar categories.
 - **Four sources corrected**: Humanmade's Eventbrite adapter (`jsonld` → `nextdata`),
   Frontier's venue filter (matched ~9 of 262 events), Ace's `luma.com/acemakers` (a
   different organization entirely), and Noisebridge's `noisebridge.today` (a parked domain).
-- **Five silent-failure traps documented** — endpoints returning HTTP 200 with the wrong
-  content, and one returning 404 with a valid RSS body.
-- **Four new health-gate cases** and two new adapters (`bookwhen_html`, `json`), both now in
-  `sources.yaml` and `CLAUDE.md`.
+- **Silent-failure traps documented** — endpoints returning HTTP 200 with the wrong content,
+  one returning 404 with a valid RSS body, one returning 404 with an RSS *content-type* over
+  an HTML body, and one returning 200 with valid JSON containing 98 of 353 products because
+  a sort parameter was omitted.
+- **Four new health-gate cases** and three new adapters (`bookwhen_html`, `json`,
+  `embedded_json`), all now in `sources.yaml` and `CLAUDE.md`.
 - **19 additional Bay Area spaces discovered** via `makernexuswiki.com`, listed at the
   bottom of `sources.yaml`.
