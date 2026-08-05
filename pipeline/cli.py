@@ -31,8 +31,8 @@ single request. It exists because issue 0001 (the bot about page must resolve
 before the first fetch) blocks live fetching, and the config path still needs a
 way to be exercised.
 
-Five decisions worth stating
-----------------------------
+Six decisions worth stating
+---------------------------
 
 **Unimplemented adapters skip, they do not crash.** Two of the ten adapter names
 in ``sources.yaml`` are implemented today (``ics``, ``gcal_ics``); the other
@@ -65,7 +65,15 @@ seam in :func:`evaluate_health` returns "not blocked" today and the run exits 0;
 the branch that returns the non-zero code is already wired so 0016 only has to
 fill in the decision.
 
-Implemented by issue 0012.
+**A failed source republishes rather than disappearing.** Issue 0014 opens the
+SQLite store at run start and hands it to the ``Fetcher``, which is what makes
+conditional GET real and what makes carry-forward possible. A ``failed`` source
+emits its last-known-good events, horizon-clipped, until the third consecutive
+night; a ``blocked`` one emits nothing, ever. ``--dry-run`` reads that store and
+writes none of it. The reasoning for all of it lives in
+:mod:`pipeline.carry_forward` and in :func:`run_pipeline`.
+
+Implemented by issue 0012, extended by issue 0014.
 """
 
 from __future__ import annotations
@@ -86,6 +94,7 @@ import httpx
 from pipeline import __version__
 from pipeline.adapters.gcal_ics import parse_gcal_ics
 from pipeline.adapters.ics import IcsParse, parse_ics
+from pipeline.carry_forward import CarryForward, apply_carry_forward
 from pipeline.config import (
     OUT_DIR,
     RAW_DIR,
@@ -102,6 +111,7 @@ from pipeline.emit_ics import EmitResult, emit_ics
 from pipeline.fetch import FetchError, FetchResult, Fetcher, Outcome, request_url, source_label
 from pipeline.filters import filter_normalization
 from pipeline.normalize import Event, normalize_ics
+from pipeline.store import DEFAULT_DB_PATH, ReadOnlyStore, Store, open_store
 
 LOG = logging.getLogger("pipeline.cli")
 
@@ -418,6 +428,27 @@ class SourceRecord:
     last_change: str | None = None
     stale_days: float | None = None
 
+    # -- carry-forward (issue 0014) --------------------------------------------
+    #: This source failed and republished its last-known-good events. Never set
+    #: for ``blocked`` — see :mod:`pipeline.carry_forward`.
+    carried_forward: bool = False
+    #: HTTP 304: the stored set was reused because the server says it is current.
+    #: Not staleness, not a failure, and deliberately a different field.
+    reused_unchanged: bool = False
+    carry_forward_count: int = 0
+    #: Stored events that have since fallen out of the horizon. The calendar
+    #: decays rather than freezing.
+    carry_forward_dropped_count: int = 0
+    #: **The age of the data**, which is the number issue 0017 surfaces.
+    carry_forward_age_seconds: float | None = None
+    last_known_good_at: str | None = None
+    carry_forward_note: str = ""
+    #: Consecutive failed nights including tonight. Three escalates.
+    consecutive_failures: int = 0
+    escalated: bool = False
+    #: Set only when escalated. Issue 0016's gates and issue 0027's alerting.
+    alert: str | None = None
+
     # -- verdicts --------------------------------------------------------------
     problem: str | None = None
     reason: str | None = None
@@ -428,6 +459,13 @@ class SourceRecord:
     def ran(self) -> bool:
         """True when the source was actually fetched and parsed."""
         return self.status in ("ok", "not_modified")
+
+    @property
+    def carry_forward_age_days(self) -> float | None:
+        """How old the republished data is, in days. ``None`` when fresh."""
+        if self.carry_forward_age_seconds is None:
+            return None
+        return self.carry_forward_age_seconds / 86400.0
 
     def as_dict(self) -> dict[str, Any]:
         """JSON-ready. The wire form issue 0017 writes into ``health.json``."""
@@ -460,6 +498,25 @@ class SourceRecord:
             "tz_assumed_count": self.tz_assumed_count,
             "last_change": self.last_change,
             "stale_days": round(self.stale_days, 2) if self.stale_days is not None else None,
+            "carried_forward": self.carried_forward,
+            "reused_unchanged": self.reused_unchanged,
+            "carry_forward_count": self.carry_forward_count,
+            "carry_forward_dropped_count": self.carry_forward_dropped_count,
+            "carry_forward_age_seconds": (
+                round(self.carry_forward_age_seconds, 3)
+                if self.carry_forward_age_seconds is not None
+                else None
+            ),
+            "carry_forward_age_days": (
+                round(self.carry_forward_age_days, 3)
+                if self.carry_forward_age_days is not None
+                else None
+            ),
+            "carry_forward_note": self.carry_forward_note,
+            "last_known_good_at": self.last_known_good_at,
+            "consecutive_failures": self.consecutive_failures,
+            "escalated": self.escalated,
+            "alert": self.alert,
             "problem": self.problem,
             "reason": self.reason,
             "error": self.error,
@@ -470,17 +527,45 @@ class SourceRecord:
     def key(self) -> str:
         return f"{self.space_id}:{self.label}"
 
+    @property
+    def carry_forward_line(self) -> str:
+        """The carry-forward suffix for :meth:`line`, or ``""``."""
+        if self.escalated:
+            return (
+                f" [ESCALATED: {self.consecutive_failures} consecutive failures, "
+                "carry-forward stopped]"
+            )
+        if self.carried_forward:
+            age = (
+                f"{self.carry_forward_age_days:.1f}d old"
+                if self.carry_forward_age_days is not None
+                else "age unknown"
+            )
+            return (
+                f" [carried forward {self.carry_forward_count} events, {age}"
+                + (
+                    f", {self.carry_forward_dropped_count} out of horizon"
+                    if self.carry_forward_dropped_count
+                    else ""
+                )
+                + "]"
+            )
+        if self.reused_unchanged:
+            return f" [reused {self.carry_forward_count} unchanged events]"
+        return ""
+
     def line(self) -> str:
         """One human-readable line for the run report."""
         head = f"{self.key:<44} {self.adapter:<14} {self.status:<13}"
         if self.status in ("skipped", "blocked", "failed", "error"):
-            return f"{head} {self.reason or self.error or ''}".rstrip()
+            tail = f"{self.reason or self.error or ''}{self.carry_forward_line}"
+            return f"{head} {tail}".rstrip()
         detail = (
             f"HTTP {self.http_status} {self.content_type or '-'} "
             f"{self.bytes}B raw={self.raw_count} horizon={self.horizon_count} "
             f"events={self.event_count} in {self.elapsed_seconds:.2f}s"
         )
-        return f"{head} {detail}"
+        return f"{head} {detail}{self.carry_forward_line}"
 
     def __str__(self) -> str:  # pragma: no cover - diagnostics only
         return self.line()
@@ -541,8 +626,15 @@ class RunReport:
     published: bool = False
     publish_skipped_reason: str | None = None
 
+    #: The store's run row for this run. ``None`` on a ``--dry-run``, which
+    #: writes nothing — see :func:`run_pipeline`.
+    run_id: int | None = None
+    db_path: str | None = None
+
     records: list[SourceRecord] = field(default_factory=list)
     events: list[Event] = field(default_factory=list)
+    #: One entry per source that republished stored events, failure or 304.
+    carry_forwards: list[CarryForward] = field(default_factory=list)
     #: UIDs seen more than once and collapsed to first-seen. Real dedupe is
     #: issue 0015; a non-empty list here is material for it.
     uid_collisions: list[str] = field(default_factory=list)
@@ -586,6 +678,24 @@ class RunReport:
             if record.status in ("failed", "blocked", "error")
         ]
 
+    @property
+    def carried_forward(self) -> list[SourceRecord]:
+        """Sources publishing aged data tonight. Issue 0017's staleness list."""
+        return [record for record in self.records if record.carried_forward]
+
+    @property
+    def escalated(self) -> list[SourceRecord]:
+        """Sources past the third failed night. These want a human."""
+        return [record for record in self.records if record.escalated]
+
+    @property
+    def carried_forward_event_count(self) -> int:
+        return sum(record.carry_forward_count for record in self.carried_forward)
+
+    @property
+    def alerts(self) -> list[str]:
+        return [record.alert for record in self.records if record.alert]
+
     def record_for(self, space_id: str, label: str) -> SourceRecord | None:
         for record in self.records:
             if record.space_id == space_id and record.label == label:
@@ -606,6 +716,8 @@ class RunReport:
             "out_dir": str(self.out_dir) if self.out_dir else None,
             "published": self.published,
             "publish_skipped_reason": self.publish_skipped_reason,
+            "run_id": self.run_id,
+            "db_path": self.db_path,
             "counts": {
                 "spaces": self.spaces_seen,
                 "sources": len(self.records),
@@ -613,7 +725,12 @@ class RunReport:
                 "skipped": len(self.skipped),
                 "failed": len(self.failed),
                 "events": self.event_count,
+                "carried_forward_sources": len(self.carried_forward),
+                "carried_forward_events": self.carried_forward_event_count,
+                "escalated_sources": len(self.escalated),
             },
+            "carry_forward": [plan.as_dict() for plan in self.carry_forwards],
+            "alerts": self.alerts,
             "lm_studio": self.lm_studio.as_dict() if self.lm_studio else None,
             "enrich_skipped_reason": self.enrich_skipped_reason,
             "dedupe_skipped_reason": self.dedupe_skipped_reason,
@@ -825,6 +942,8 @@ def run_pipeline(
     horizon_days: int | None = None,
     out_dir: Path | str | None = None,
     raw_dir: Path | str = RAW_DIR,
+    db_path: Path | str | None = None,
+    store: Store | None = None,
     transport: httpx.BaseTransport | None = None,
     sleep: Callable[[float], None] = time.sleep,
     clock: Callable[[], float] = time.monotonic,
@@ -835,6 +954,50 @@ def run_pipeline(
 
     Returns a :class:`RunReport` rather than exiting, so the repair workflow and
     the tests can drive a run and read the result.
+
+    The store (issue 0014)
+    ----------------------
+
+    ``store`` or ``db_path`` names the SQLite working store. Passing **neither**
+    gives an in-memory one, which is the pre-0014 behavior — a run that forgets
+    every ETag and every event when it exits. That is a deliberate default for a
+    *library* call: the nightly job goes through :func:`main`, which passes
+    :data:`~pipeline.store.DEFAULT_DB_PATH`, and a test or an experiment that
+    forgot to name a database should not silently write into the real one.
+
+    The store does three things here, and they happen in this order:
+
+    1. It backs conditional GET (``Fetcher(state=store)``). Sudo Room's feed is
+       8 MB and Maker Nexus's is 11 MB; without this the run re-downloads 19 MB
+       every night to compute a byte-identical answer.
+    2. It answers carry-forward. A failed source republishes what it last
+       produced; a 304 replays the same rows because there is no body to parse.
+    3. It records the run — one ``record_events`` call per source per run, which
+       is the contract :meth:`~pipeline.store.Store.carry_forward_events`
+       depends on, since it keys on ``MAX(last_seen)`` and a second call in the
+       same run would split one night's set across two timestamps.
+
+    ``--dry-run`` reads all of it and writes none of it
+    ---------------------------------------------------
+
+    A dry run fetches through :class:`~pipeline.store.ReadOnlyStore`: stored
+    ETags are *used*, so the run is realistic and cheap, and every write is
+    dropped. No HTTP state, no events, no run row.
+
+    The other policy — record the dry run's HTTP state, since a validator is
+    just a cache — is tempting and wrong. Storing an ETag makes the **next real
+    run** receive a 304 for a body this process parsed and then threw away, so
+    the published calendar would be assembled from replayed history because a
+    debugging invocation spent the only unconditional fetch. And ``--dry-run``
+    is precisely the tool you reach for when a source is misbehaving; a
+    diagnostic that mutates the state under diagnosis is a trap. The same
+    argument covers ``consecutive_failures``: a dry run must never be able to
+    push a source toward its third strike and fire an alert.
+
+    A single-space run (``--space``) *does* write. It performs real fetches for
+    the sources it touches, and the sources it does not touch simply have no row
+    — an absent run is not a broken streak. See
+    :meth:`~pipeline.store.Store.consecutive_failed_runs`.
     """
     now = now or dt.datetime.now(dt.timezone.utc)
     horizon = horizon_days or registry.horizon_days
@@ -862,11 +1025,32 @@ def run_pipeline(
             target,
         )
 
+    # --- the working store ----------------------------------------------------
+    owned_store = None
+    if store is None:
+        owned_store = open_store(db_path) if db_path is not None else Store.in_memory()
+        store = owned_store
+    report.db_path = None if store.path == ":memory:" else str(store.path)
+
+    # A dry run reads the store and writes nothing. See the docstring; the
+    # short version is that spending the next real run's unconditional fetch on
+    # a debugging invocation is not a trade this program makes.
+    state_store: Any = ReadOnlyStore(store) if dry_run else store
+    if not dry_run:
+        report.run_id = store.start_run(
+            now,
+            dry_run=False,
+            space_filter=space_id,
+            horizon_days=horizon,
+            version=__version__,
+        )
+
     # --- fetch -> adapter -> normalize -> filter, one space at a time ---------
     fetcher = Fetcher(
         registry,
         transport=transport,
         raw_dir=raw_dir,
+        state=state_store,
         sleep=sleep,
         clock=clock,
     )
@@ -876,7 +1060,44 @@ def run_pipeline(
                 ref, fetcher, horizon_days=horizon, now=now
             )
             report.records.append(record)
-            report.events.extend(events)
+
+            if events:
+                # Once per source per run. carry_forward_events() selects the
+                # rows sharing MAX(last_seen), so a second call for the same
+                # source tonight would split one night's set in two and
+                # tomorrow's carry-forward would republish only the tail of it.
+                if dry_run:
+                    report.events.extend(events)
+                else:
+                    merge = state_store.record_events(
+                        events, run_id=report.run_id, now=now
+                    )
+                    # The merged copies carry the *stored* first_seen, which is
+                    # what RSS pubDate reads (issue 0018). A title edit must not
+                    # re-date an event and re-notify every subscriber.
+                    report.events.extend(merge.events)
+            else:
+                plan = apply_carry_forward(
+                    record, state_store, now=now, horizon_days=horizon
+                )
+                if plan is not None:
+                    report.carry_forwards.append(plan)
+                    report.events.extend(plan.events)
+                    if plan.escalated:
+                        LOG.error("%s", plan.alert)
+                    elif plan.available:
+                        LOG.warning("%s", plan.line())
+                    if plan.reused_unchanged and not dry_run:
+                        # A 304 is the server saying "these bytes are current",
+                        # so the set is re-stamped as seen tonight. Carry-forward
+                        # after a *failure* deliberately is not: its whole job is
+                        # to let the age grow until somebody looks.
+                        state_store.record_events(
+                            plan.events, run_id=report.run_id, now=now
+                        )
+
+            if not dry_run:
+                state_store.record_source_run(report.run_id or 0, record)
             _log_record(record)
     finally:
         fetcher.close()
@@ -933,6 +1154,7 @@ def run_pipeline(
         )
         LOG.error("%s", report.publish_skipped_reason)
         report.finished_at = dt.datetime.now(dt.timezone.utc)
+        _finish_run(report, store, owned_store)
         return report
 
     # --- publish --------------------------------------------------------------
@@ -952,7 +1174,28 @@ def run_pipeline(
         report.published = True
 
     report.finished_at = dt.datetime.now(dt.timezone.utc)
+    _finish_run(report, store, owned_store)
     return report
+
+
+def _finish_run(report: RunReport, store: Store, owned: Store | None) -> None:
+    """Close the run row and, if we opened the store, close the store.
+
+    A dry run has no row to close. A store handed in by a caller stays open —
+    the caller is holding it and will want to read what the run did.
+    """
+    if report.run_id is not None:
+        store.finish_run(
+            report.run_id,
+            finished_at=report.finished_at,
+            event_count=report.event_count,
+            published=report.published,
+            health_blocked=report.health.blocked,
+            health_reasons=report.health.reasons,
+            exit_code=report.exit_code,
+        )
+    if owned is not None:
+        owned.close()
 
 
 # --------------------------------------------------------------------------- output
@@ -979,6 +1222,15 @@ def print_run_report(report: RunReport, stream: Any = None) -> None:
         file=out,
     )
     print(f"events:  {report.event_count}", file=out)
+    if report.carried_forward:
+        print(
+            f"carried: {report.carried_forward_event_count} events from "
+            f"{len(report.carried_forward)} failed sources "
+            "(republished, not re-fetched)",
+            file=out,
+        )
+    for alert in report.alerts:
+        print(f"ALERT:   {alert}", file=out)
     if report.uid_collisions:
         print(
             f"dedupe:  {len(report.uid_collisions)} duplicate UIDs collapsed to "
@@ -1156,6 +1408,7 @@ def main(
     registry_path: Path | str = SOURCES_YAML,
     out_dir: Path | str | None = None,
     raw_dir: Path | str = RAW_DIR,
+    db_path: Path | str | None = None,
     transport: httpx.BaseTransport | None = None,
     sleep: Callable[[float], None] = time.sleep,
     clock: Callable[[], float] = time.monotonic,
@@ -1167,8 +1420,9 @@ def main(
 
     The keyword arguments after ``argv`` are not CLI flags: they are the seams
     the tests and the repair workflow drive the run through — a mock transport,
-    a fake clock, a temporary ``out/``. Nothing here reaches the network unless
-    a real transport is used.
+    a fake clock, a temporary ``out/``, a throwaway ``db_path``. Nothing here
+    reaches the network unless a real transport is used, and nothing writes to
+    the real ``db/events.sqlite`` unless ``db_path`` is left alone.
     """
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -1208,6 +1462,7 @@ def main(
             horizon_days=args.horizon_days,
             out_dir=out_dir,
             raw_dir=raw_dir,
+            db_path=DEFAULT_DB_PATH if db_path is None else db_path,
             transport=transport,
             sleep=sleep,
             clock=clock,

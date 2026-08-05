@@ -146,9 +146,15 @@ def registry(env: dict[str, str]):
 
 
 def run_main(argv, env, tmp_path: Path, **kwargs) -> int:
-    """``main`` with every seam pointed somewhere harmless."""
+    """``main`` with every seam pointed somewhere harmless.
+
+    ``db_path`` included (issue 0014): ``main`` now defaults to the real
+    ``db/events.sqlite``, and a test suite that shared one database would carry
+    ETags between cases and start answering 304 to itself.
+    """
     kwargs.setdefault("transport", calendar_transport())
     kwargs.setdefault("llm_probe", offline_llm)
+    kwargs.setdefault("db_path", tmp_path / "events.sqlite")
     return main(
         argv,
         env=dict(env),

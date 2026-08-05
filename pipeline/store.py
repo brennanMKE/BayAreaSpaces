@@ -994,6 +994,47 @@ class Store:
         ).fetchall()
         return [self._source_run_row(row) for row in rows]
 
+    def consecutive_failed_runs(
+        self,
+        space_id: str,
+        label: str,
+        *,
+        statuses: Sequence[str] = ("failed", "error"),
+        limit: int = 60,
+    ) -> int:
+        """How many *recorded* runs in a row this source failed, newest first.
+
+        Issue 0014's escalation counter, and deliberately not the same number as
+        :attr:`~pipeline.fetch.SourceState.consecutive_failures`. That one is
+        incremented by the fetch layer and reset by a successful *transport*, so
+        a feed answering 200 with the homepage every night — the wrong-adapter
+        case CLAUDE.md calls as silent as a wrong URL — keeps it pinned at zero
+        forever. This counts the run rows, which record the verdict after the
+        adapter has had its say.
+
+        **Dry runs do not count.** A dry run publishes nothing, and letting one
+        push a source toward its third strike would make a debugging tool able to
+        fire an alert.
+
+        Runs in which this source was not touched (a ``--space`` run elsewhere)
+        have no row and are simply absent from the scan rather than breaking the
+        streak.
+        """
+        rows = self._conn.execute(
+            "SELECT run_source.status AS status FROM run_source "
+            "JOIN run USING (run_id) WHERE source_key = ? AND run.dry_run = 0 "
+            "ORDER BY run_id DESC LIMIT ?",
+            (f"{space_id}:{label}", int(limit)),
+        ).fetchall()
+        failing = set(statuses)
+        streak = 0
+        for row in rows:
+            if row["status"] in failing:
+                streak += 1
+            else:
+                break
+        return streak
+
     def event_counts_for_run(self, run_id: int) -> dict[str, int]:
         """``{source_key: event_count}`` for one run. Issue 0016's comparison."""
         rows = self._conn.execute(
@@ -1113,6 +1154,78 @@ class Store:
         return never
 
 
+# --------------------------------------------------------------------------- read-only
+
+
+class ReadOnlyStoreError(StoreError):
+    """A write was attempted through the ``--dry-run`` façade."""
+
+
+class ReadOnlyStore:
+    """A :class:`Store` that reads everything and writes nothing.
+
+    What ``--dry-run`` fetches through. The full rationale is in
+    :func:`pipeline.cli.run_pipeline`; the short version is that a dry run must
+    behave *exactly* like a real one — same conditional GETs, same 304s, same
+    carry-forward — while leaving the next real run's state untouched.
+
+    :meth:`put` is a silent no-op because the fetch layer calls it on every
+    single request and there is nothing for it to decide. The higher-level
+    writers raise instead: the run loop is supposed to guard them, and a guard
+    that has quietly stopped working should be a failed dry run rather than a
+    polluted database.
+    """
+
+    #: Everything that would leave a mark. Refused, loudly.
+    WRITE_METHODS = frozenset(
+        {
+            "record_events",
+            "record_run",
+            "record_source_run",
+            "start_run",
+            "finish_run",
+            "set_gate_outcome",
+            "forget_source_state",
+        }
+    )
+
+    def __init__(self, store: Store) -> None:
+        self._store = store
+
+    @property
+    def store(self) -> Store:
+        """The wrapped store. For assertions, not for writing around the façade."""
+        return self._store
+
+    # -- HttpStateStore --------------------------------------------------------
+
+    def get(self, key: str) -> SourceState | None:
+        return self._store.get(key)
+
+    def put(self, key: str, state: SourceState) -> None:
+        """Deliberately nothing. A dry run must not spend the real run's ETag."""
+
+    # -- everything else -------------------------------------------------------
+
+    def __getattr__(self, name: str) -> Any:
+        if name in ReadOnlyStore.WRITE_METHODS:
+            raise ReadOnlyStoreError(
+                f"{name}() was called on a read-only store. This is a --dry-run: "
+                "it reads state so the run is realistic and writes none so the "
+                "next real run is unaffected."
+            )
+        return getattr(self._store, name)
+
+    def close(self) -> None:
+        self._store.close()
+
+    def __enter__(self) -> ReadOnlyStore:
+        return self
+
+    def __exit__(self, *exc_info: object) -> None:
+        self.close()
+
+
 # --------------------------------------------------------------------------- helpers
 
 
@@ -1132,6 +1245,8 @@ __all__ = [
     "SCHEMA_VERSION",
     "EventMerge",
     "NaiveDatetimeError",
+    "ReadOnlyStore",
+    "ReadOnlyStoreError",
     "RunRow",
     "SchemaTooNewError",
     "SourceRunRow",
