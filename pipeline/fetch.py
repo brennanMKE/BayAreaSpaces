@@ -58,7 +58,7 @@ from datetime import date, datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Protocol, runtime_checkable
-from urllib.parse import quote, urlsplit
+from urllib.parse import urlsplit
 from urllib.robotparser import RobotFileParser
 
 import httpx
@@ -419,9 +419,19 @@ def resolve_url(source: Source) -> str:
     carries the URL verbatim. This is the *only* place a URL is constructed
     rather than read from the registry, and it is a fixed Google template — not
     a guess. "Never guess a feed URL."
+
+    The construction itself lives in :mod:`pipeline.adapters.gcal_ics` (issue
+    0008) and is imported lazily here, because that module imports this one. One
+    implementation rather than two is deliberate: the id appears in this project
+    both as ``…%40group.calendar.google.com`` and as ``…@group.calendar.google.com``,
+    and encoding an already-encoded id gives ``%2540``, which is a valid request
+    for a calendar that does not exist. A second copy of that rule would be a
+    second chance to get it wrong.
     """
     if source.calendar_id:
-        return GCAL_ICS_TEMPLATE.format(calendar_id=quote(source.calendar_id, safe=""))
+        from pipeline.adapters.gcal_ics import calendar_ics_url
+
+        return calendar_ics_url(source.calendar_id)
     return source.url or ""
 
 
