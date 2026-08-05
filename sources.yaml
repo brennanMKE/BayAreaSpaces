@@ -1,0 +1,164 @@
+# Bay Area makerspace event source registry
+# Seed file. Fill in the `url` fields marked TODO by opening the page and copying
+# the subscribe link. Never guess a feed URL: a wrong one fails silently as an
+# empty calendar.
+#
+# adapter values:
+#   ics          direct iCalendar feed
+#   gcal_ics     Google Calendar public basic.ics (needs calendar_id)
+#   tribe_rest   The Events Calendar WP REST API
+#   jsonld       parse schema.org/Event from embedded <script type=application/ld+json>
+#   nextdata     parse __NEXT_DATA__ blob (JS-rendered sites)
+#   llm_html     last resort: clean HTML -> local model -> JSON
+#
+# trust: used for dedupe tie-breaking. Higher wins when two sources describe the
+# same event. Always rank the space's own site above any aggregator.
+
+defaults:
+  timezone: America/Los_Angeles
+  user_agent: "bayarea-maker-calendar/0.1 (+https://brennan.sstools.co; contact: TODO@example.com)"
+  rate_limit_seconds: 2
+  horizon_days: 120
+
+spaces:
+
+  - id: ace-makerspace
+    name: Ace Makerspace
+    city: Oakland
+    region: east-bay
+    url: https://www.acemakerspace.org/
+    sources:
+      - adapter: tribe_rest
+        url: https://www.acemakerspace.org/wp-json/tribe/events/v1/events
+        params: { per_page: 50 }
+        trust: 100
+        verified: false   # endpoint inferred from tec-api-version meta; confirm once
+      - adapter: ics
+        url: https://www.acemakerspace.org/?post_type=tribe_events&ical=1&eventDisplay=list&calendarVersion=3
+        trust: 90
+        verified: true
+
+  - id: hacker-dojo
+    name: Hacker Dojo
+    city: Mountain View
+    region: peninsula
+    url: https://hackerdojo.org/
+    sources:
+      - adapter: ics
+        url: TODO   # events.hackerdojo.com footer -> "iCal". Site blocks bots; copy by hand.
+        trust: 100
+        verified: false
+      # The same footer also offers RSS, JSON and CSV. JSON is preferable if the
+      # shape is sane; fall back to ICS.
+
+  - id: sudo-room
+    name: Sudo Room
+    city: Oakland
+    region: east-bay
+    url: https://sudoroom.org/
+    sources:
+      - adapter: gcal_ics
+        calendar_id: TODO   # view-source on https://sudoroom.org/calendar/ , read iframe src
+        trust: 100
+        verified: false
+      - adapter: gcal_ics
+        calendar_id: TODO   # "Omni Commons General Calendar" from the same page
+        label: omni-commons-general
+        trust: 80
+        verified: false
+
+  - id: noisebridge
+    name: Noisebridge
+    city: San Francisco
+    region: sf
+    url: https://www.noisebridge.net/
+    sources:
+      - adapter: ics
+        url: TODO   # luma.com/noisebridge -> sidebar "Add iCal Subscription"
+        label: luma
+        trust: 100
+        verified: false
+      - adapter: gcal_ics
+        calendar_id: TODO   # noisebridge.today associated gCal
+        label: noisebridge-today
+        trust: 70
+        verified: false
+      - adapter: llm_html
+        url: https://www.noisebridge.net/wiki/Events
+        label: wiki-recurring
+        trust: 40
+        notes: >
+          Only source for the standing weekly schedule (Go night, Wood Night,
+          Five Minutes of Fame). Extract once, convert to hand-maintained RRULEs,
+          then stop crawling it.
+        verified: false
+
+  - id: sequoia-fabrica
+    name: Sequoia Fabrica
+    city: San Francisco
+    region: sf
+    url: https://sequoiafabrica.org/
+    sources:
+      - adapter: ics
+        url: TODO   # feeds.bookwhen.com/ical/{account}/{token}/public.ics - get from Bookwhen admin
+        label: bookwhen-public
+        trust: 100
+        verified: false
+
+  - id: frontier-makerspace
+    name: Frontier Makerspace (Frontier Tower)
+    city: San Francisco
+    region: sf
+    url: https://frontiertower.io/
+    sources:
+      - adapter: ics
+        url: TODO   # luma.com/frontiertower -> "Add iCal Subscription"
+        label: luma
+        trust: 100
+        verified: false
+        filters:
+          # Tower runs 3+ events/day building-wide. Keep only maker-relevant ones.
+          location_contains: ["Makerspace", "Arts and Music", "Robotics"]
+
+  - id: humanmade
+    name: Humanmade
+    city: San Francisco
+    region: sf
+    url: https://www.humanmade.org/
+    sources:
+      - adapter: jsonld
+        url: https://www.eventbrite.com/o/humanmade-57286899753
+        label: eventbrite-organizer
+        trust: 90
+        verified: false
+
+  - id: maker-nexus
+    name: Maker Nexus
+    city: Sunnyvale
+    region: south-bay
+    url: https://www.makernexus.org/
+    sources:
+      - adapter: gcal_ics
+        calendar_id: TODO   # inspect embed on makernexus.org class calendar page
+        trust: 100
+        verified: false
+      - adapter: llm_html
+        url: https://www.makernexus.org/classes-week-view
+        trust: 50
+        verified: false
+
+# --- Not yet wired up. Verify each is still operating before adding. ---
+#
+# sf:         Double Union, The Shed, MakeX, Port Product Lab, SFPL makerspaces
+# east-bay:   Counter Culture Labs, Mothership HackerMoms, Circuit Launch,
+#             The Crucible, Bay Area Maker Farm, PEV Works
+# south-bay:  BioCurious, School of Visual Philosophy, Foothill College Makerspace,
+#             Kitchentown, Coyote Grange
+# north-bay:  Chimera Arts (Sebastopol), Cyber Garage (Marin), Benicia Makerspace
+#
+# Aggregators for discovery/cross-check only, never as authoritative:
+#   dothebay.com/venues/{slug}, sf.funcheap.com, missionlocal.org/venue/{slug}
+#
+# Deliberately excluded: Meetup. Gated behind Pro + OAuth, ToS forbids scraping,
+# and for most of these spaces it duplicates their own calendar. Revisit only if
+# a space is Meetup-only.

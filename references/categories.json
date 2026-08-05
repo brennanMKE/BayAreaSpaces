@@ -1,0 +1,30 @@
+[
+  {
+    "name": "Electronics",
+    "description": "Hardware electronics, components, and embedded systems",
+    "interests": [
+      {
+        "name": "Soldering",
+        "keywords": ["rework", "flux", "iron", "SMD", "through-hole"]
+      },
+      {
+        "name": "Circuits",
+        "keywords": ["schematic", "PCB", "analog", "digital", "op-amp"]
+      }
+    ]
+  },
+  {
+    "name": "Fabrication",
+    "description": "Tools and techniques for making physical objects",
+    "interests": [
+      {
+        "name": "3D Printer",
+        "keywords": ["FDM", "SLA", "PETG", "PLA", "slicer"]
+      },
+      {
+        "name": "Laser Cutter",
+        "keywords": ["CO2 laser", "diode laser", "kerf", "vector", "engrave"]
+      }
+    ]
+  }
+]

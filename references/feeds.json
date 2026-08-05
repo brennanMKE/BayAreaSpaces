@@ -1,0 +1,74 @@
+[
+  {
+    "id": "sequoiafabrica-cal",
+    "name": "Sequoia Fabrica Calendar",
+    "url": "https://calendar.google.com/calendar/ical/c_69d095340ce714f6a0769a561fa4414c07981195eb1c9be7fde47a5cdd5450a5%40group.calendar.google.com/public/basic.ics",
+    "type": "ical",
+    "output": "sequoiafabrica.ics",
+    "refreshMinutes": 240
+  },
+  {
+    "id": "noisebridge-rss",
+    "name": "Noisebridge Meetup RSS",
+    "url": "https://www.meetup.com/noisebridge/events/rss/",
+    "type": "rss",
+    "output": "noisebridge-meetup.xml",
+    "refreshMinutes": 240
+  },
+  {
+    "id": "noisebridge-cal",
+    "name": "Noisebridge Calendar",
+    "url": "https://calendar.google.com/calendar/ical/6a2a8ad7ac4d009565a90f6aafb901c2dafa352ce86b3164108721c6767271fb@group.calendar.google.com/public/basic.ics",
+    "type": "ical",
+    "output": "noisebridge.ics",
+    "refreshMinutes": 240
+  },
+  {
+    "id": "sudoroom-rss",
+    "name": "Sudo Room Blog RSS",
+    "url": "https://sudoroom.org/feed/",
+    "type": "rss",
+    "output": "sudoroom.xml",
+    "refreshMinutes": 240
+  },
+  {
+    "id": "sudoroom-cal",
+    "name": "Sudo Room Calendar",
+    "url": "https://sudoroom.org/?ical=1",
+    "type": "ical",
+    "output": "sudoroom.ics",
+    "refreshMinutes": 240
+  },
+  {
+    "id": "hackerdojo-rss",
+    "name": "Hacker Dojo Meetup RSS",
+    "url": "https://www.meetup.com/hackerdojo/events/rss/",
+    "type": "rss",
+    "output": "hackerdojo.xml",
+    "refreshMinutes": 240
+  },
+  {
+    "id": "acemakerspace-rss",
+    "name": "Ace Makerspace Blog RSS",
+    "url": "https://www.acemakerspace.org/feed/",
+    "type": "rss",
+    "output": "acemakerspace.xml",
+    "refreshMinutes": 240
+  },
+  {
+    "id": "acemakerspace-cal",
+    "name": "Ace Makerspace Calendar",
+    "url": "https://www.acemakerspace.org/calendar/photo/?ical=1",
+    "type": "ical",
+    "output": "acemakerspace.ics",
+    "refreshMinutes": 240
+  },
+  {
+    "id": "makernexus-cal",
+    "name": "Maker Nexus Calendar",
+    "url": "https://calendar.google.com/calendar/ical/c_dd13e6622c96fb917233442f8d9b9fc23848858063c36902f15d077b772bbd82@group.calendar.google.com/public/basic.ics",
+    "type": "ical",
+    "output": "makernexus.ics",
+    "refreshMinutes": 240
+  }
+]
