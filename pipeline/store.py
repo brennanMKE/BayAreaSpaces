@@ -79,7 +79,7 @@ from pipeline.normalize import AddressSource, Event, QuarantineReason
 DEFAULT_DB_PATH = DB_DIR / "events.sqlite"
 
 #: Bump this and add a migration below. Never edit an existing migration.
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 #: sqlite3 in-memory marker, accepted anywhere a path is.
 MEMORY = ":memory:"
@@ -271,10 +271,24 @@ class SourceRunRow:
     reason: str | None = None
     error: str | None = None
     started_at: dt.datetime | None = None
+    #: The ``raw/`` file this night archived, when there was a body to archive.
+    #: The diff material the repair pass runs on — see :meth:`Store.zero_streak`.
+    raw_path: str | None = None
 
     @property
     def source_key(self) -> str:
         return f"{self.space_id}:{self.label}"
+
+    def as_dict(self) -> dict[str, Any]:
+        """JSON-ready. One night of one source, as ``health.json`` reports it."""
+        return {
+            "run_id": self.run_id,
+            "started_at": to_iso(self.started_at),
+            "status": self.status,
+            "horizon_count": self.horizon_count,
+            "event_count": self.event_count,
+            "raw_path": self.raw_path,
+        }
 
 
 # --------------------------------------------------------------------------- Event codec
@@ -393,9 +407,22 @@ def _migrate_to_1(conn: sqlite3.Connection) -> None:
     conn.executescript(_SCHEMA_V1)
 
 
+def _migrate_to_2(conn: sqlite3.Connection) -> None:
+    """Remember which ``raw/`` file each source run archived (issue 0017).
+
+    The repair workflow dispatches on "0 for three consecutive nights" and then
+    diffs the raw bodies from those nights. Without this column a consumer has
+    to guess at ``raw/YYYY-MM-DD/{space}-{label}.{ext}`` — and the archive
+    deliberately writes a timestamped sibling when a second run in one day sees
+    different bytes, which is exactly the night the guess would be wrong.
+    """
+    conn.execute("ALTER TABLE run_source ADD COLUMN raw_path TEXT")
+
+
 #: target version -> the function that brings a database up to it.
 _MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {
     1: _migrate_to_1,
+    2: _migrate_to_2,
 }
 
 
@@ -832,8 +859,8 @@ class Store:
                 raw_count, horizon_count, normalized_count, event_count,
                 dropped_count, quarantined_count, filtered_out_count,
                 fetch_seconds, elapsed_seconds, gate_blocked, gate_reasons,
-                problem, reason, error
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                problem, reason, error, raw_path
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (run_id, space_id, label) DO UPDATE SET
                 adapter = excluded.adapter,
                 status = excluded.status,
@@ -855,7 +882,8 @@ class Store:
                 gate_reasons = excluded.gate_reasons,
                 problem = excluded.problem,
                 reason = excluded.reason,
-                error = excluded.error
+                error = excluded.error,
+                raw_path = excluded.raw_path
             """,
             (
                 run_id,
@@ -883,6 +911,11 @@ class Store:
                 getattr(record, "problem", None),
                 getattr(record, "reason", None),
                 getattr(record, "error", None),
+                (
+                    str(getattr(record, "raw_path", None))
+                    if getattr(record, "raw_path", None)
+                    else None
+                ),
             ),
         )
         if event_count > 0:
@@ -1035,6 +1068,63 @@ class Store:
                 break
         return streak
 
+    def zero_streak(
+        self,
+        space_id: str,
+        label: str,
+        *,
+        exclude_run_id: int | None = None,
+        judged: Sequence[str] = ("ok",),
+        limit: int = 30,
+    ) -> list[SourceRunRow]:
+        """The unbroken run of recorded nights this source answered with **0**.
+
+        Newest first, one row per night, each carrying its ``raw_path``. This is
+        the query the repair workflow is dispatched on: CLAUDE.md's rule is that
+        a source at zero for three consecutive nights has drifted, and OpenCode
+        is pointed at that one space with ``raw/`` from those nights as the diff
+        material. Returning the rows rather than a count means the consumer gets
+        the answer *and* the evidence without a second lookup.
+
+        Three exclusions, each for the same reason as its neighbour in
+        :meth:`consecutive_failed_runs`:
+
+        - **Dry runs do not count.** A debugging invocation must not be able to
+          push a source toward a repair pass.
+        - **Only nights the source actually parsed a body are judged.**
+          ``skipped`` (adapter not implemented yet) and ``blocked``
+          (``robots.txt`` said no) are zero by decision and would otherwise
+          report every pending adapter as drifted on night three, forever;
+          ``not_modified`` has no body to count and a 304 means the server says
+          the source is current, which is the opposite of drift.
+        - **A failed night neither extends nor breaks the streak.** A 503 is
+          carry-forward's clock, not this one; counting it here would dispatch a
+          repair pass at an outage, and breaking the streak on it would let a
+          source that fails every third night hide indefinitely.
+
+        ``exclude_run_id`` leaves tonight out — the run loop records source runs
+        before the gates run, so tonight's row is already in the table and the
+        caller folds in the live record instead.
+        """
+        rows = self._conn.execute(
+            "SELECT run_source.*, run.started_at AS started_at FROM run_source "
+            "JOIN run USING (run_id) WHERE source_key = ? AND run.dry_run = 0 "
+            "ORDER BY run_id DESC LIMIT ?",
+            (f"{space_id}:{label}", int(limit)),
+        ).fetchall()
+
+        answered = set(judged)
+        streak: list[SourceRunRow] = []
+        for row in rows:
+            if exclude_run_id is not None and int(row["run_id"]) == exclude_run_id:
+                continue
+            if row["status"] not in answered:
+                continue
+            if int(row["horizon_count"] or 0) > 0:
+                break
+            streak.append(self._source_run_row(row))
+        return streak
+
     def event_counts_for_run(self, run_id: int) -> dict[str, int]:
         """``{source_key: event_count}`` for one run. Issue 0016's comparison."""
         rows = self._conn.execute(
@@ -1089,6 +1179,7 @@ class Store:
             reason=row["reason"],
             error=row["error"],
             started_at=from_iso(row["started_at"], field="started_at"),
+            raw_path=row["raw_path"],
         )
 
     # -- require_nonzero_once --------------------------------------------------

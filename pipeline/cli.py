@@ -111,6 +111,7 @@ from pipeline.emit_ics import EmitResult, emit_ics
 from pipeline.fetch import FetchError, FetchResult, Fetcher, Outcome, request_url, source_label
 from pipeline.filters import filter_normalization
 from pipeline.health import HealthVerdict, evaluate_health
+from pipeline.health_json import write_health_json
 from pipeline.normalize import Event, normalize_ics
 from pipeline.store import DEFAULT_DB_PATH, ReadOnlyStore, Store, open_store
 
@@ -424,6 +425,12 @@ class SourceRecord:
     filtered_out_count: int = 0
     #: Floating times interpreted by policy. Non-zero is worth a look.
     tz_assumed_count: int = 0
+    #: :meth:`pipeline.filters.FilterResult.summary` verbatim: per-rule drop
+    #: counts, per-pattern hits, and the dead patterns. ``filtered_out_count``
+    #: says a filter removed 253 of 262 events; this says *which rule* did, and
+    #: which configured pattern never matched anything — the ``Arts and Music``
+    #: bug is only ever visible as a zero.
+    filters: dict[str, Any] | None = None
 
     # -- staleness (issue 0016's ``max_stale_days`` runs on these) -------------
     last_change: str | None = None
@@ -497,6 +504,7 @@ class SourceRecord:
             "quarantined_count": self.quarantined_count,
             "filtered_out_count": self.filtered_out_count,
             "tz_assumed_count": self.tz_assumed_count,
+            "filters": self.filters,
             "last_change": self.last_change,
             "stale_days": round(self.stale_days, 2) if self.stale_days is not None else None,
             "carried_forward": self.carried_forward,
@@ -616,6 +624,13 @@ class RunReport:
     health: HealthDecision = field(default_factory=HealthDecision)
     emit: EmitResult | None = None
     exit_code: int = EXIT_OK
+
+    #: Where ``health.json`` landed (issue 0017). Written on every run, blocked
+    #: or not — under ``out/.staging/`` for a dry run, like everything else.
+    health_json_path: Path | None = None
+    #: Set only when writing it failed. Diagnostics must not take down a run
+    #: that has already published a correct calendar.
+    health_json_error: str | None = None
 
     # -- counts ----------------------------------------------------------------
 
@@ -854,6 +869,10 @@ def process_source(
         filtered = filter_normalization(normalization, source.filters)
         record.filtered_out_count = filtered.dropped_count
         record.event_count = filtered.kept_count
+        # The per-rule accounting, as filters already computed it. Issue 0017
+        # publishes it unchanged; a filter that quietly ate a space is only
+        # diagnosable from the rule and the pattern, not from the total.
+        record.filters = filtered.summary()
         record.status = "ok"
         record.elapsed_seconds = time.perf_counter() - started
         return record, list(filtered.events)
@@ -1159,6 +1178,9 @@ def run_pipeline(
         )
         LOG.error("%s", report.publish_skipped_reason)
         report.finished_at = dt.datetime.now(dt.timezone.utc)
+        # **Especially** on this path. Nothing was published, something decided
+        # that, and health.json is the only artifact left to read at 09:00.
+        _write_health_json(report, store, out_dir=target)
         _finish_run(report, store, owned_store)
         return report
 
@@ -1179,8 +1201,29 @@ def run_pipeline(
         report.published = True
 
     report.finished_at = dt.datetime.now(dt.timezone.utc)
+    _write_health_json(report, store, out_dir=target)
     _finish_run(report, store, owned_store)
     return report
+
+
+def _write_health_json(
+    report: RunReport, store: Store, *, out_dir: Path | None = None
+) -> None:
+    """Write ``health.json`` and record where it went. Never fails the run.
+
+    The calendar has already been published (or deliberately not published) by
+    the time this is called, and losing the night's diagnostics is a smaller
+    loss than turning a good run into a non-zero exit. The failure is logged
+    with a traceback and lands in the report, so it is visible rather than
+    swallowed.
+    """
+    try:
+        report.health_json_path = write_health_json(
+            report, store=store, out_dir=out_dir
+        )
+    except Exception as exc:  # pragma: no cover - defensive
+        report.health_json_error = f"{type(exc).__name__}: {exc}"
+        LOG.exception("could not write health.json")
 
 
 def _finish_run(report: RunReport, store: Store, owned: Store | None) -> None:
@@ -1275,6 +1318,10 @@ def print_run_report(report: RunReport, stream: Any = None) -> None:
         )
     elif report.publish_skipped_reason:
         print(f"emitted: nothing — {report.publish_skipped_reason}", file=out)
+    if report.health_json_path is not None:
+        print(f"health:  wrote {report.health_json_path}", file=out)
+    elif report.health_json_error:
+        print(f"health:  health.json NOT written — {report.health_json_error}", file=out)
     print(f"elapsed: {report.elapsed_seconds:.1f}s", file=out)
 
 
@@ -1532,4 +1579,5 @@ __all__ = [
     "probe_lm_studio",
     "process_source",
     "run_pipeline",
+    "write_health_json",
 ]
