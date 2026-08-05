@@ -128,7 +128,16 @@ class Filters(BaseModel):
 
     # CLAUDE.md: 15% of Frontier Tower's events set LOCATION to a bare Luma URL.
     # Default to keeping those rather than dropping them at the filter step.
-    location_allow_when_missing: bool = False
+    #
+    # The default is True, and issue 0010 corrected it from False: the invariant
+    # says an event whose LOCATION is empty or a bare URL is kept unless the
+    # registry says otherwise, and a default of False made every source that
+    # writes `location_contains` without thinking about it drop those events
+    # silently -- which is precisely the failure the invariant names. Registry
+    # entries that mean it still write `location_allow_when_missing: false` and
+    # get the strict behavior. Keeping a possibly-off-site event is visible in
+    # the published calendar and recoverable; dropping a real one is neither.
+    location_allow_when_missing: bool = True
 
     @property
     def is_empty(self) -> bool:

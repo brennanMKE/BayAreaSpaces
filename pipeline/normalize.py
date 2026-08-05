@@ -21,9 +21,12 @@ Responsibilities:
   two shapes that mean "the extraction went wrong", so nothing disappears
   without leaving a record.
 
-Filters from ``sources.yaml`` (``location_contains`` and friends) are issue
-0010 and deliberately live downstream of this module: everything here is
-source-agnostic, and a filter needs the canonical record this module produces.
+Filters from ``sources.yaml`` (``location_contains`` and friends) live
+downstream in :mod:`pipeline.filters`: everything here is source-agnostic, and
+a filter needs the canonical record this module produces. That module reads
+:attr:`Event.location_name` (the source's verbatim ``LOCATION``) rather than
+:attr:`Event.address`, and :func:`is_bare_url` is shared with it so both stages
+agree on what counts as a venue.
 
 Why an exception and not ``assert``
 -----------------------------------
@@ -84,7 +87,8 @@ Nexus passes its JSON cache key ``YYYY-MM-DD_<amiliaId>``, The Crucible passes
 three already carry the occurrence, so all three are non-recurring by this
 module's reckoning and keep the stable two-part form.
 
-Implemented by issue 0009. Issue 0010 adds the registry filters on top.
+Implemented by issue 0009. Issue 0010 adds the registry filters on top, in
+``pipeline/filters.py``.
 """
 
 from __future__ import annotations
@@ -547,12 +551,17 @@ def _clean(text: str | None) -> str | None:
     return value or None
 
 
-def _is_bare_url(text: str) -> bool:
+def is_bare_url(text: str) -> bool:
     """True for a ``LOCATION`` that is only a link.
 
     15% of Frontier Tower's events set ``LOCATION`` to a bare Luma URL. That is
     not a venue and must not be treated as one — but it is also not a reason to
     drop the event (see the filters invariant in CLAUDE.md).
+
+    Public because ``pipeline.filters`` (issue 0010) has to agree with this
+    module, to the character, about what counts as a venue: if the two stages
+    disagreed, an event could be given an address here and then dropped there
+    for having none.
     """
     return bool(_URL_RE.match(text.strip()))
 
@@ -690,7 +699,7 @@ class VenuePolicy:
         located = 0
         for raw in raws:
             location = _clean(raw.location)
-            if location is None or _is_bare_url(location):
+            if location is None or is_bare_url(location):
                 continue
             located += 1
             key = normalize_title(location)
@@ -708,11 +717,11 @@ class VenuePolicy:
         text = _clean(location)
 
         if self.override is None:
-            if text is None or _is_bare_url(text):
+            if text is None or is_bare_url(text):
                 return None, AddressSource.NONE, False
             return text, AddressSource.SOURCE, False
 
-        if text is None or _is_bare_url(text):
+        if text is None or is_bare_url(text):
             return self.override, AddressSource.OVERRIDE, False
 
         key = normalize_title(text)
@@ -1172,6 +1181,7 @@ __all__ = [
     "day_start_utc",
     "from_ics_event",
     "is_aware",
+    "is_bare_url",
     "make_uid",
     "normalize_event",
     "normalize_events",
