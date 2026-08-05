@@ -1,42 +1,61 @@
 # Bay Area Spaces
 
-A nightly job that collects events from Bay Area makerspaces and publishes a merged
-`.ics` calendar and RSS feed.
+A nightly job that collects events from Bay Area makerspaces into one clean dataset,
+which a separate website turns into a public calendar and RSS feed.
 
 Most Bay Area makerspaces publish events somewhere — but "somewhere" means a Luma page,
 a WordPress plugin, an embedded Google Calendar, a Bookwhen account, a MediaWiki page, or
-nothing at all. This project reads all of them, normalizes the result, and emits one
-calendar you can subscribe to.
+nothing at all. This project reads all of them and normalizes the result.
 
-**Status: design complete, no code yet.** This repo currently holds the project brief, the
-source registry, and reference data. See [Getting started](#getting-started) for what to
-build first.
+**Scope:** this repo is the collection half only. It runs locally on a Mac mini, uses
+SQLite as its working store, and publishes the finished event set to a Postgres database on
+AWS EC2. The website that reads that database and serves the calendar and feed is a
+separate project.
+
+**Status: design complete, no pipeline code yet.** This repo currently holds the project
+brief, the source registry, per-space research notes, and reference data. See
+[Getting started](#getting-started) for what to build first.
 
 ## Contents
 
 | File | What it is |
 |---|---|
 | [`maker-calendar-handoff.md`](maker-calendar-handoff.md) | The full project brief: data sources, web-access strategy, pipeline design, scheduling, ethics, phasing. Read this first. |
+| [`CLAUDE.md`](CLAUDE.md) | Working guidance for Claude Code / OpenCode: scope boundary, data stores, invariants. Overrides the brief where they differ. |
 | [`sources.yaml`](sources.yaml) | Machine-readable source registry. Several `url` fields are still `TODO` and must be filled in by hand. |
+| `spaces/*.md` | Per-space research notes: verified feeds, leads, dead ends, social accounts, contacts. |
 | `references/feeds.json` | An earlier, partly-verified list of concrete feed URLs — useful for filling in `sources.yaml` TODOs. |
 | `references/categories.json` | Seed taxonomy (Electronics, Fabrication…) with per-interest keywords, for event categorization. |
 
 ## How it works
 
-Deterministic Python does fetching, parsing, date math, dedupe, and emission. A local model
-(LM Studio, OpenAI-compatible at `http://localhost:1234/v1`) is called for exactly two jobs:
-extracting events from freeform HTML that has no stable selectors, and assigning categories
-plus a one-line summary. Everything else is code — an agent re-deciding how to parse a
-calendar every night makes "the feed changed" indistinguishable from "the model had a bad night."
+One deterministic **Python** process iterates `sources.yaml` and does the fetching, parsing,
+date math, dedupe, and emission. A local model (LM Studio, OpenAI-compatible at
+`http://localhost:1234/v1`) is called for exactly two jobs: extracting events from freeform
+HTML that has no stable selectors, and assigning categories plus a one-line summary.
+
+That second part stays small on purpose. Of 21 verified sources, **20 are deterministically
+parseable** — only the Noisebridge wiki needs a model, and even that gets extracted once and
+converted to hand-maintained recurrence rules. An agent re-deciding how to parse a calendar
+every night makes "the feed changed" indistinguishable from "the model had a bad night."
+
+OpenCode is not in the nightly path. It is the tool for building the pipeline and repairing
+an adapter when a source drifts, with a human reviewing the diff.
 
 ```
-sources.yaml ─▶ fetch ─▶ adapters ─▶ normalize ─▶ dedupe ─▶ enrich ─▶ emit ─▶ out/
-                 │         ics                                (LLM)     ics
-             conditional   gcal                                         rss
-             GET, cache,   tribe_rest                                   json
-             rate limit    jsonld
-                           llm_html
+sources.yaml ─▶ fetch ─▶ adapters ─▶ normalize ─▶ dedupe ─▶ enrich ─▶ publish
+                 │         ics                                (LLM)      │
+             conditional   gcal                                          ▼
+             GET, cache,   tribe_rest                          Postgres on EC2
+             rate limit    jsonld                                        │
+                           llm_html                                      ▼
+                                                            website (separate project)
+                                                              calendar · RSS
 ```
+
+SQLite on the mini holds the working state — ETags for conditional GET, event history for
+carry-forward, dedupe state, run health. Postgres on EC2 is the handoff boundary: this repo
+writes, the website reads.
 
 Planned layout:
 
@@ -114,9 +133,9 @@ Scheduled with **launchd**, not cron — `~/Library/LaunchAgents/co.sstools.make
 `sudo pmset repeat wakeorpoweron MTWRFSU 03:10:00`. If LM Studio's server is not answering
 on port 1234, the run skips the LLM stages and emits Tier A/B only rather than failing.
 
-Output is committed to a public repo and served over GitHub Pages, which sends `.ics` with
-a usable content type (`raw.githubusercontent.com` does not — do not hand out raw URLs).
-Publish `webcal://` links alongside `https://`.
+The finished event set is pushed to Postgres on EC2. Until the connection method and schema
+ownership are settled with the website project, the pipeline emits to `out/` and that is the
+interface. See [CLAUDE.md](CLAUDE.md) for the open questions.
 
 ## Being a good citizen
 

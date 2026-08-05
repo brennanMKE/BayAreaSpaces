@@ -1,18 +1,59 @@
 # Bay Area makerspace event source registry
-# Seed file. Fill in the `url` fields marked TODO by opening the page and copying
-# the subscribe link. Never guess a feed URL: a wrong one fails silently as an
-# empty calendar.
+#
+# Every `verified: true` source below was fetched and confirmed on 2026-08-05.
+# Per-space research notes, dead ends and contacts live in spaces/<id>.md.
+# Never guess a feed URL: a wrong one fails silently as an empty calendar.
 #
 # adapter values:
-#   ics          direct iCalendar feed
-#   gcal_ics     Google Calendar public basic.ics (needs calendar_id)
-#   tribe_rest   The Events Calendar WP REST API
-#   jsonld       parse schema.org/Event from embedded <script type=application/ld+json>
-#   nextdata     parse __NEXT_DATA__ blob (JS-rendered sites)
-#   llm_html     last resort: clean HTML -> local model -> JSON
+#   ics            direct iCalendar feed
+#   gcal_ics       Google Calendar public basic.ics (needs calendar_id)
+#   tribe_rest     The Events Calendar WP REST API
+#   jsonld         parse schema.org/Event from embedded <script type=application/ld+json>
+#   nextdata       parse __NEXT_DATA__ blob (Eventbrite organizer pages)
+#   json           plain JSON document with a bespoke shape + field mapping
+#   rss            RSS/Atom. Only an event source when items carry a real start
+#                  date; most do not. Otherwise change-detection only.
+#   bookwhen_html  server-rendered Bookwhen agenda table (deterministic, no browser)
+#   llm_html       last resort: clean HTML -> local model -> JSON
 #
-# trust: used for dedupe tie-breaking. Higher wins when two sources describe the
-# same event. Always rank the space's own site above any aggregator.
+# trust: dedupe tie-breaking. Higher wins. A space's own site always outranks
+# an aggregator or a partner's calendar.
+#
+# enabled: false  keeps a documented source in the registry without fetching it.
+#
+# health: per-source overrides for the publish gates. Needed because three
+# distinct "zero events" cases are not failures:
+#   allow_zero          space is legitimately empty for long stretches (low volume)
+#   ignore_count_drop   feed is capped or truncated, so night-over-night deltas
+#                       are meaningless
+#   require_nonzero_once  never yet observed non-zero; cannot have "gone to zero"
+#   max_stale_days      alert if LAST-MODIFIED is older than this. Catches the
+#                       abandoned-calendar-with-unbounded-RRULE case, which
+#                       otherwise publishes fiction forever at a constant rate
+#                       and passes every count-based gate.
+#
+# filters: applied after parse, before dedupe.
+#   location_contains / title_contains        keep only matches
+#   location_excludes / title_excludes        drop matches
+#   categories_exclude                        drop by source category
+#   location_allow_when_missing: true         keep events with empty/URL-only
+#                                             LOCATION rather than silently
+#                                             dropping them at the filter step
+#
+# address_override: some feeds ship a stale or absent venue. Override per space.
+#
+# spaceapi: whether the space publishes a SpaceAPI endpoint (https://spaceapi.io),
+#   the hackerspace status standard. NOT a data source today - tracked because it
+#   is the best thing to ask a space for. Its `feeds.calendar` gives {url, type},
+#   `contact` gives email/mailing list, and `location` gives address + lat/lon, so
+#   a space that publishes one makes its own registry entry self-maintaining: when
+#   they move or switch platforms, the JSON updates and we follow automatically.
+#     url / status: live | dead | none / checked: YYYY-MM-DD
+#   Directory of all 249 registered spaces: https://directory.spaceapi.io/
+#   Only ONE Bay Area space is registered (Sudo Room) and its endpoint is dead.
+#   TRAP: the top-level `events` field is NOT calendar events - it is recent
+#   occurrences in the space (door opened, member checkin). The calendar is at
+#   `feeds.calendar`. Treat any directory entry as a lead requiring verification.
 
 defaults:
   timezone: America/Los_Angeles
@@ -22,50 +63,138 @@ defaults:
 
 spaces:
 
+  # ---------------------------------------------------------------- east bay
+
   - id: ace-makerspace
     name: Ace Makerspace
     city: Oakland
     region: east-bay
     url: https://www.acemakerspace.org/
+    rate_limit_seconds: 10   # robots.txt sets Crawl-delay: 10, above the global default
     sources:
       - adapter: tribe_rest
         url: https://www.acemakerspace.org/wp-json/tribe/events/v1/events
         params: { per_page: 50 }
+        label: tribe-rest
         trust: 100
-        verified: false   # endpoint inferred from tec-api-version meta; confirm once
+        verified: true
+        notes: >
+          92 upcoming events over 2 pages. Paginate on next_rest_url. Richest
+          payload (cost, categories, venue, organizer, ticketed, is_virtual,
+          utc_start_date). Unescape HTML entities in `cost` (e.g. "&#036;20.00").
       - adapter: ics
-        url: https://www.acemakerspace.org/?post_type=tribe_events&ical=1&eventDisplay=list&calendarVersion=3
+        url: https://www.acemakerspace.org/calendar/list/?ical=1
+        label: tribe-ics-list
         trust: 90
         verified: true
-
-  - id: hacker-dojo
-    name: Hacker Dojo
-    city: Mountain View
-    region: peninsula
-    url: https://hackerdojo.org/
-    sources:
-      - adapter: ics
-        url: TODO   # events.hackerdojo.com footer -> "iCal". Site blocks bots; copy by hand.
-        trust: 100
-        verified: false
-      # The same footer also offers RSS, JSON and CSV. JSON is preferable if the
-      # shape is sane; fall back to ICS.
+        notes: >
+          126 VEVENTs, byte-identical to the longer ?post_type=tribe_events&ical=1
+          form. Fallback for the REST feed; do not ingest both as separate sources.
+      - adapter: jsonld
+        url: https://www.acemakerspace.org/calendar/
+        label: calendar-jsonld
+        trust: 50
+        verified: true
+        notes: 12 schema.org/Event objects, current page only. Third-line fallback.
+    # TRAPS, verified 2026-08-05 - do not wire these up:
+    #   /calendar/photo/?ical=1  -> 200, but a byte-identical copy of the FULL
+    #     event list. "photo" is a TEC view name, not a category. Looks like a
+    #     working per-category feed and is not one.
+    #   /calendar/feed/          -> HTTP 404 with a populated 9.8 KB RSS body.
+    #     A body-trusting parser ingests it; a status-checking parser drops it.
+    #     Canonical events RSS is ?post_type=tribe_events&feed=rss2.
+    #   luma.com/acemakers       -> NOT Ace Makerspace. Feed works (5 events) but
+    #     every event is an unrelated IT-consulting sales talk.
+    #
+    # Cross-check only (Meetup excluded by policy; duplicates the site calendar
+    # and the group says "do not RSVP here"):
+    #   https://www.meetup.com/ace-makerspace/events/rss/  -> 200, 10 real events
+    #
+    # Category-scoped ICS if per-programme calendars are ever wanted.
+    # Pattern /calendar/category/{slug}/?ical=1 ; (v) = filtering confirmed:
+    #   3d-printing-events (v)   art-events              electronics-events
+    #   laser-events (v)         metal-machining-events  operations-and-meetings
+    #   outreach-events          social-events           textiles-events (v)
+    #   workshop-events (v)
 
   - id: sudo-room
     name: Sudo Room
     city: Oakland
     region: east-bay
     url: https://sudoroom.org/
+    address_override: "Omni Commons, 4799 Shattuck Ave, Oakland, CA 94609"
+    # Both feeds ship a stale LOCATION (549 48th St, the pre-2014 address).
+    spaceapi:
+      url: http://api.sudoroom.org/status.json
+      status: dead
+      checked: 2026-08-05
+      # Listed in directory.spaceapi.io - the ONLY Bay Area space that is. The
+      # endpoint 302s to sudoroom.org/api/status.json and returns 404 text/html
+      # (a WordPress not-found page). They believed in this enough to register and
+      # it rotted. Best outreach opener on the whole list: offer to fix it and
+      # point feeds.calendar at the ICS they already publish.
     sources:
-      - adapter: gcal_ics
-        calendar_id: TODO   # view-source on https://sudoroom.org/calendar/ , read iframe src
+      - adapter: ics
+        url: https://sudoroom.org/?ical=1
+        label: events-manager
         trust: 100
-        verified: false
-      - adapter: gcal_ics
-        calendar_id: TODO   # "Omni Commons General Calendar" from the same page
-        label: omni-commons-general
-        trust: 80
-        verified: false
+        verified: true
+        notes: >
+          WP Events Manager 7.2.3.1. 8 MB, 5057 VEVENTs pre-expanded to 2058;
+          73 land in the next 120 days. Query params (scope, limit, category) are
+          IGNORED - the server always returns the full body, so clamp to
+          horizon_days client-side. Cache on If-Modified-Since.
+        filters:
+          # Feed carries cross-posted third-party events. Keep Sudo Room's own.
+          categories_exclude:
+            - "events happening elsewhere"
+            - "noisebridge"
+            - "east bay food not bombs"
+            - "museum events"
+            - "bike parties"
+      - adapter: ics
+        url: https://api.lu.ma/ics/get?entity=calendar&id=cal-bqAGiRcc3VT4oYW
+        label: luma
+        trust: 90
+        verified: true
+        notes: >
+          269 VEVENTs, 19 future. Better one-off/workshop coverage and a real
+          per-event URL; thinner on the recurring backbone. Some entries are
+          off-site (e.g. The Box Shop) - check LOCATION before applying
+          address_override.
+      - adapter: rss
+        url: https://sudoroom.org/events/feed/
+        label: events-rss
+        trust: 40
+        verified: true
+        notes: >
+          pubDate is the EVENT START here, not the publish time. Fallback and
+          change-detection only - no end time, no venue.
+      - adapter: rss
+        url: https://sfba.social/@sudoroom.rss
+        label: mastodon
+        trust: 10
+        verified: true
+        notes: Announcement signal, not an event feed. Links to luma.com slugs.
+    # CORRECTION: there are NO Google Calendar embeds on sudoroom.org/calendar/
+    # (0 hits for calendar.google.com). The colour-coded entries are
+    # WP-FullCalendar category options. The two gcal_ics TODO stubs that used to
+    # be here were chasing calendars that do not exist.
+    #
+    # Dead ends - do not re-investigate: no JSON-LD anywhere; no Tribe; wp/v2/event
+    # 404s; no Meetup group; omnicommons.org/calendar -> 500 (whole /blog/ tree);
+    # omnicommons.org/wiki/Calendar is a governance-minutes archive current to
+    # 2025-08, not an events source.
+    #
+    # HIGH-LEVERAGE LEAD: the "Omni Commons General Calendar" on
+    # sudoroom.org/calendar/ is an Airtable embed (shrxXjo869sxBzHmr, view
+    # viwJFaj6nFsS1poak). Data endpoints are walled, but Airtable supports native
+    # iCal sync - so this is a request, not code. Ask
+    # commons@lists.omnicommons.org (Commons Working Group, meets 2nd & 4th Mon).
+    # One toggle would cover every Omni collective including Counter Culture Labs,
+    # which currently has no feed at all.
+
+  # ---------------------------------------------------------------------- sf
 
   - id: noisebridge
     name: Noisebridge
@@ -74,24 +203,53 @@ spaces:
     url: https://www.noisebridge.net/
     sources:
       - adapter: ics
-        url: TODO   # luma.com/noisebridge -> sidebar "Add iCal Subscription"
+        url: https://api.lu.ma/ics/get?entity=calendar&id=cal-0aMKsxMfZ73gRpI
         label: luma
         trust: 100
-        verified: false
+        verified: true
+        health:
+          allow_zero: true   # self-described main calendar, but near-empty forward
+        notes: >
+          46 VEVENTs, clean evt-*@events.lu.ma UIDs, no RRULEs. Only 1 event at or
+          after 2026-08-05 - do not expect this alone to cover Noisebridge. The
+          cal- api_id came from the luma.com/noisebridge HTML; the vanity slug does
+          NOT work against api.lu.ma.
+      - adapter: llm_html
+        url: https://www.noisebridge.net/api.php?action=parse&page=Category:Events&prop=wikitext&format=json&formatversion=2
+        label: wiki-recurring
+        trust: 40
+        verified: true
+        notes: >
+          MediaWiki API wikitext, not rendered HTML. Returns the standing weekly
+          schedule as wikitable rows with explicit {{Recurring}} /
+          {{RecurringNumbered|1st}} markers. Extract ONCE, convert to
+          hand-maintained RRULEs (full table in spaces/noisebridge.md), then stop
+          crawling. Watch Special:RecentChanges?feed=rss to know when to redo it.
+          /wiki/Events is only a redirect; content lives on Category:Events.
+          robots.txt fully disallows ClaudeBot and Amazonbot.
+      # DISABLED - broken in a way that passes every count-based health check.
+      # 200 text/calendar with 28 VEVENTs, but abandoned since 2024-01 (newest
+      # LAST-MODIFIED 2024-06-13) and five RRULEs have no UNTIL, so it fabricates
+      # ~5 plausible events per week forever. This is why max_stale_days exists.
       - adapter: gcal_ics
-        calendar_id: TODO   # noisebridge.today associated gCal
+        calendar_id: 6a2a8ad7ac4d009565a90f6aafb901c2dafa352ce86b3164108721c6767271fb@group.calendar.google.com
         label: noisebridge-today
         trust: 70
         verified: false
-      - adapter: llm_html
-        url: https://www.noisebridge.net/wiki/Events
-        label: wiki-recurring
-        trust: 40
-        notes: >
-          Only source for the standing weekly schedule (Go night, Wood Night,
-          Five Minutes of Fame). Extract once, convert to hand-maintained RRULEs,
-          then stop crawling it.
-        verified: false
+        enabled: false
+        health:
+          max_stale_days: 180
+    # noisebridge.today is a PARKED FOR-SALE DOMAIN. The site is gone.
+    # Also dead: the second embedded import.calendar.google.com gCal (404);
+    # /feed/, /rss/, /blog/feed/ (soft-404s byte-identical to the homepage);
+    # the Mailman list archives (offline); discuss.noisebridge.info (domain lost,
+    # now serving an autothat.com cert).
+    #
+    # NOT AN EVENT SOURCE - official Meetup RSS returns 200 with 10 real current
+    # items, but items carry NO event start date, only pubDate. Their own wiki
+    # calls Meetup the most up-to-date list, so this space is
+    # authoritative-and-inaccessible. Liveness signal only:
+    #   https://www.meetup.com/noisebridge/events/rss/
 
   - id: sequoia-fabrica
     name: Sequoia Fabrica
@@ -99,11 +257,49 @@ spaces:
     region: sf
     url: https://sequoiafabrica.org/
     sources:
+      # Public classes + social nights. THE primary public calendar.
+      # Prefer the real ICS once the token is pasted in; until then parse the
+      # server-rendered agenda table, which is stable and needs no browser.
       - adapter: ics
-        url: TODO   # feeds.bookwhen.com/ical/{account}/{token}/public.ics - get from Bookwhen admin
+        url: TODO   # webcal://feeds.bookwhen.com/ical/lcqebfpp6u7h/{TOKEN}/public.ics?historic_month_count=1
         label: bookwhen-public
         trust: 100
         verified: false
+        notes: >
+          Account segment lcqebfpp6u7h confirmed from the public page's
+          data-options "calendar" key. TOKEN is only available from Bookwhen admin
+          -> "Calendar feeds"; Brennan is a founding member, ask in Slack #events.
+          Host/path shape confirmed by probing with a deliberately invalid token
+          (404 text/calendar) - no live URL was ever guessed.
+      - adapter: bookwhen_html
+        url: https://bookwhen.com/sequoiafabrica
+        label: bookwhen-agenda
+        trust: 95
+        verified: true
+        notes: >
+          20 real events, 2026-08-13 -> 2027-01-05. Fallback until the ICS token
+          lands, then demote or drop. Rows are <tr data-hook="agenda_list_item">;
+          data-event="ev-{entryid}-{YYYYMMDDHHMMSS}" carries the exact local start.
+          Paginate via /sequoiafabrica/calendar_items only if the default 20-row
+          window ever falls short of the horizon.
+      - adapter: gcal_ics
+        calendar_id: c_69d095340ce714f6a0769a561fa4414c07981195eb1c9be7fde47a5cdd5450a5@group.calendar.google.com
+        label: community-calendar
+        trust: 90
+        verified: true
+        notes: >
+          Member/volunteer events ONLY - disjoint from Bookwhen, per the calendar's
+          own X-WR-CALDESC: "For member and volunteer events (separate from
+          classes/Bookwhen events)." 89 VEVENTs back to Dec 2023 but only ~7 live
+          in a 120-day horizon, 6 of them open-ended monthly RRULEs. Expand and
+          clip to horizon. Mixed DTSTART forms (bare UTC Z and TZID=) both occur.
+    # Dead end: events.sequoiafabrica.org looks like a real events site but every
+    # path (/events.ics, /feed, /ical) 200s as a redirect to Bookwhen.
+    # No Luma, no Eventbrite. Main site is a static Next.js export with an empty
+    # __NEXT_DATA__ and no JSON-LD. Wiki has no calendar.
+    # Mastodon (sfba.social/@sequoiafabrica.rss) and Bluesky
+    # (bsky.app/profile/sequoiafabrica.org/rss) both work but are stale
+    # (2025-12-23 / 2025-07-08). Instagram is the live channel.
 
   - id: frontier-makerspace
     name: Frontier Makerspace (Frontier Tower)
@@ -112,13 +308,49 @@ spaces:
     url: https://frontiertower.io/
     sources:
       - adapter: ics
-        url: TODO   # luma.com/frontiertower -> "Add iCal Subscription"
-        label: luma
+        url: https://api.lu.ma/ics/get?entity=calendar&id=cal-Sl7q1nHTRXQzjP2
+        label: luma-frontiertower
         trust: 100
-        verified: false
+        verified: true
+        notes: >
+          262 VEVENTs, 26 upcoming. Canonical calendar: the Tower's Event Organizer
+          Guide requires every event to be created in the Frontier Tower app, from
+          which it lands here, so there are NO per-floor sub-calendars. The ICS
+          carries all upcoming events but is truncated mid-history (2025-10..2026-07
+          missing) - fine forward, useless for backfill.
+          Actual volume is ~26-30 upcoming, ~30-70/month. It is not the 3+/day
+          firehose the brief assumed.
         filters:
-          # Tower runs 3+ events/day building-wide. Keep only maker-relevant ones.
-          location_contains: ["Makerspace", "Arts and Music", "Robotics"]
+          # Keep the building, drop off-site events (Denver, Embarcadero, Eddy St).
+          location_contains: ["Frontier Tower", "995 Market", "Berlinhouse"]
+          # 15% of events set LOCATION to a bare luma.com/event/... URL when the
+          # host hides the address - including real makerspace events. Without
+          # this they vanish at the filter step with no error.
+          location_allow_when_missing: true
+          title_excludes: ["Hold -", "TBA (", "Placeholder"]
+          # --- Optional maker-only view. Verbatim strings observed 2026-08-05.
+          #     Yields ~4% of the calendar; prefer the building filter above.
+          #     NB: "Arts and Music" NEVER appears - it is "Arts & Music".
+          #     "Robotics" only ever occurs inside "Hard Tech & Robotics".
+          # location_contains: ["Makerspace", "Floor 7", "FL 7", "Floor7",
+          #                     "Arts & Music", "Hard Tech & Robotics"]
+      - adapter: ics
+        url: https://api.lu.ma/ics/get?entity=calendar&id=cal-3QxzLUEwOpGxxNc
+        label: luma-biopunk-community
+        trust: 60
+        verified: true
+        notes: >
+          F08 Neuro & Biotech partner community. 121 VEVENTs, 49 at 995 Market.
+          Multi-venue, so the location filter is mandatory.
+        filters:
+          location_contains: ["Frontier Tower", "995 Market", "Berlinhouse"]
+    # luma.com/makerspace is RWI Labs, NOT Frontier. Also unrelated or dormant:
+    # frontierbio (a Hayward company), frontiersyndicate (a VC group),
+    # berlinhouse / frontiertowersf (stale predecessor calendars).
+    #
+    # LEAD: api.frontiertower.io returns 401, and their public SDK documents
+    # events:listEvents and events:listLocations. That second call would give
+    # canonical room names and remove the filtering guesswork entirely. Good ask.
 
   - id: humanmade
     name: Humanmade
@@ -126,11 +358,159 @@ spaces:
     region: sf
     url: https://www.humanmade.org/
     sources:
-      - adapter: jsonld
+      - adapter: ics
+        url: https://api.lu.ma/ics/get?entity=calendar&id=cal-ExbgBW04yBHC7bp
+        label: luma-humanmade
+        trust: 100
+        verified: true
+        notes: >
+          Humanmade's own public Luma calendar - found via Instagram bio ->
+          Linktree -> a Luma RSVP link -> that event's __NEXT_DATA__. Nothing on
+          their own site links it, and there is no vanity slug (luma.com/humanmade
+          404s), so the cal- API ID is the only handle. Covers founder sessions and
+          accelerator events; does NOT currently include project workshops.
+          Luma names it "Personal" - X-WR-CALNAME is not usable as a label.
+      - adapter: nextdata
         url: https://www.eventbrite.com/o/humanmade-57286899753
         label: eventbrite-organizer
         trust: 90
         verified: false
+        health:
+          require_nonzero_once: true
+        notes: >
+          CORRECTED: this page no longer emits JSON-LD (Eventbrite moved organizer
+          profiles to Next.js), so the previous `jsonld` adapter would have returned
+          empty forever. Events live at props.pageProps.upcomingEvents in
+          <script id="__NEXT_DATA__">. upcomingEventsTotal is 0 as of 2026-08-05,
+          confirmed three ways. Eventbrite ToS restricts scraping - prefer asking
+          them to publish workshops on the Luma calendar they already run.
+      - adapter: ics
+        url: https://api.lu.ma/ics/get?entity=calendar&id=cal-tFAzNGOZ9xn6kT2
+        label: sf-hardware-meetup
+        trust: 40
+        verified: true
+        filters:
+          # This group rotates venues and LOCATION is unpopulated, so filter on
+          # the title rather than the address.
+          title_contains: ["@ Humanmade"]
+        notes: >
+          Third-party group that hosts at Humanmade several times a year. 77
+          VEVENTs. Low trust: a partner's calendar, not Humanmade's.
+    # humanmade.org is Squarespace with no events collection at all (sitemap has
+    # no /events; ?format=rss -> 400; ?format=json -> items: 0), zero iframes so
+    # no embedded gCal, and no trace of any of 16 class-booking platforms.
+    # All Eventbrite legacy RSS/ICS patterns 404. No Mastodon, no Bluesky.
+
+  - id: the-box-shop
+    name: The Box Shop
+    city: San Francisco
+    region: sf
+    url: https://boxshopsf.org/
+    health:
+      allow_zero: true
+    notes: >
+      Moving during 2026 from 951 Hudson Ave to 1265 Van Dyke Ave, both SF 94124.
+      Hand-over date NOT confirmed - sources say variously "fall 2025", "this fall",
+      "end of 2026", and nothing has ever been listed at the Van Dyke address.
+      Do NOT publish a hardcoded address after the move without re-checking: the
+      website and every Luma VEVENT LOCATION still say Hudson Ave.
+      Low volume (~8-12 public events/year), so long stretches with zero upcoming
+      events are normal, not a failure.
+      Canonical domain is boxshopsf.org (boxshopsf.com 301s to it; theboxshop.org
+      refuses connection; theboxshopsf.com is NXDOMAIN). Not to be confused with
+      The Box SF (theboxsf.com), an unrelated downtown venue.
+    sources:
+      - adapter: ics
+        url: https://api.lu.ma/ics/get?entity=calendar&id=cal-Jtv8unXGuMkfqFs
+        label: luma
+        trust: 100
+        verified: true
+        notes: >
+          11 VEVENTs with real DTSTARTs (2025-07-13..2026-07-12), street addresses,
+          GEO and stable UIDs. 0 upcoming as of 2026-08-05. Not linked from their
+          site anywhere - found by grepping outbound links in the page HTML.
+          Kyana is the named ORGANIZER on every VEVENT; Alita Edgar co-hosts.
+      - adapter: jsonld
+        url: https://boxshopsf.org/events?format=rss
+        label: squarespace-events
+        trust: 95
+        verified: true
+        notes: >
+          Two-step adapter. The RSS carries NO event date (pubDate is the post
+          date), so use it only to enumerate item <link> URLs, then GET each
+          /events/<slug> and parse the schema.org/Event JSON-LD, which has correct
+          startDate/endDate with -0700 offsets. JSON-LD "location" is empty; fill
+          from this space record. Catches Eventbrite-ticketed partner events (e.g.
+          Flaming Lotus Girls / Heavy Petting Zoo) that never reach Luma.
+          DO NOT use ?format=json or ?format=ical: both are Disallow'ed in
+          boxshopsf.org/robots.txt. ?format=rss is allowed. (Both also return 200
+          with text/html anyway.)
+      # Real and parseable via __NEXT_DATA__, but upcomingEventsTotal was 0 on
+      # 2026-08-05, so nothing was ever confirmed. Enable after a nonzero count.
+      - adapter: nextdata
+        url: https://www.eventbrite.com/o/the-box-shop-85448047483
+        label: eventbrite-organizer
+        trust: 80
+        verified: false
+        enabled: false
+
+  # --------------------------------------------------- peninsula / south bay
+
+  - id: hacker-dojo
+    name: Hacker Dojo
+    city: Mountain View
+    region: peninsula
+    url: https://hackerdojo.org/
+    address_override: "855 Maude Ave, Mountain View, CA 94043"
+    sources:
+      # DOCUMENTED EXCEPTION to the project-wide Meetup exclusion. Both of the
+      # policy's rationales fail here: these are Meetup's own PUBLISHED feed
+      # endpoints, not scraped pages, so there is no ToS issue - and Hacker Dojo
+      # has no calendar of its own left to duplicate. events.hackerdojo.com has
+      # returned Cloudflare 525 for over a year. Meetup is the ONLY working
+      # source for this space.
+      - adapter: ics
+        url: https://www.meetup.com/hackerdojo/events/ical/
+        label: meetup-ical
+        trust: 100
+        verified: true
+        health:
+          ignore_count_drop: true
+        notes: >
+          HARD CAP OF 10 EVENTS, no pagination (?count= and ?page= are ignored).
+          At this space's volume that is roughly a 1-week horizon, not 120 days,
+          so night-over-night count deltas are meaningless - only alert on 0 after
+          a run with >0. No LOCATION field; address_override supplies it. Times are
+          correctly zoned (DTSTART;TZID=America/Los_Angeles). UIDs are stable
+          (event_<id>@meetup.com).
+      - adapter: ics
+        url: https://api.lu.ma/ics/get?entity=calendar&id=cal-3cBqoSizZbzVkye
+        label: luma-calendar
+        trust: 90
+        verified: false
+        health:
+          require_nonzero_once: true
+        notes: >
+          Endpoint verified CORRECT and live (200 text/calendar,
+          X-WR-CALNAME:Hacker Dojo Calendar) but currently 0 VEVENTs. Marked
+          unverified deliberately rather than passing off a working-looking URL as
+          a working feed. Luma is where their ticketed programs run, so this may
+          populate. Re-check monthly.
+    # events.hackerdojo.com is DEAD, not bot-blocked. All 9 candidate paths return
+    # Cloudflare HTTP 525 (origin TLS handshake failure). The handoff's advice to
+    # "open it in a browser and copy the four URLs by hand" cannot work - a human
+    # sees the same error page. Wayback shows 200s through 2022, then 301s and
+    # 525s in 2025. hackerdojo.org does not link to it (grep count: 0).
+    # Canonical paths recovered from Wayback CDX so nobody re-derives them:
+    #   /events.ics  /events.json  /events.rss  /events.csv   - all 525.
+    #
+    # Trap: hackerdojo.org/?ical=1 returns 200 but serves the byte-identical
+    # homepage. Static GitHub Pages site, not WordPress - all Tribe/WP endpoints
+    # 404, zero JSON-LD, no gCal embed.
+    #
+    # Coverage caveat: some venue events (Repair Cafe, Ticket Tailor'd third-party
+    # bookings) appear in NO Dojo-controlled feed. Meetup is not complete coverage
+    # of what happens at 855 Maude.
 
   - id: maker-nexus
     name: Maker Nexus
@@ -139,26 +519,132 @@ spaces:
     url: https://www.makernexus.org/
     sources:
       - adapter: gcal_ics
-        calendar_id: TODO   # inspect embed on makernexus.org class calendar page
+        calendar_id: c_dd13e6622c96fb917233442f8d9b9fc23848858063c36902f15d077b772bbd82@group.calendar.google.com
+        label: amilia-published-classes
         trust: 100
-        verified: false
+        verified: true
+        notes: >
+          3645 VEVENTs, 171 in the future. The /classes iframe src base64-decodes
+          to exactly this ID. Superset - carries both paid classes and free
+          community events. 11 MB payload with history back to 2023-12; clip to the
+          horizon on parse. No RRULEs, all instances pre-expanded. DESCRIPTION is
+          HTML (instructor, ages, capacity, Amilia signup link) - strip tags.
+          Publishing horizon is short (Aug 112, Sep 43, Oct 16): they post ~4-8
+          weeks ahead, so the far end of a 120-day window is legitimately empty.
+        filters:
+          # ~110-135 instances/month, dominated by repeated equipment-safety
+          # checkouts (76 distinct titles across 171 instances). Without this,
+          # Maker Nexus swamps every other space in the merged feed.
+          title_excludes: ["(Equipment Training)"]
+      - adapter: json
+        url: https://storage.googleapis.com/makernexus_amilia_activities_cache/events.json
+        label: amilia-community-events-cache
+        trust: 90
+        verified: true
+        notes: >
+          Undocumented public cache. 30 forward-looking community events,
+          Last-Modified same day. Dict keyed "YYYY-MM-DD_<amiliaId>" - use the key
+          as the stable UID. Fields: Name, Description, Url, CategoryName, Price,
+          SpotsRemaining, StartDate/EndDate (ISO-8601 with -07:00 offset). Richer
+          than the ICS for the same events, so let it win the dedupe merge on price
+          and capacity; the gcal still wins on coverage.
       - adapter: llm_html
-        url: https://www.makernexus.org/classes-week-view
-        trust: 50
-        verified: false
+        url: https://amilia.makernexuswiki.com/www/amiliagetclasseswebembed.php
+        label: classes-week-view-embed
+        trust: 40
+        verified: true
+        enabled: false
+        notes: >
+          The iframe behind /classes-week-view. 63 sessions over 20 days, regular
+          markup (p.dayofweek = "YYYY-MM-DD (Dayname)", p.sessiontitle =
+          "Title <br> at HH:MM AM/PM") so it needs no model. Only ~3 weeks deep -
+          strictly worse coverage than the gcal. Keep disabled; use only to
+          cross-check that the gcal has not gone stale.
+    # The Squarespace ?format= route does NOT apply here - these are plain pages
+    # (type: page, items: []), not Events collections, and ?format=ical returns
+    # 200 with text/html.
+    # ActivityHero is stale: their own unauthenticated API
+    # (/api/v1/providers/62898) reports "has_upcoming_sessions": false. Not dead,
+    # just empty - re-check before summer camp season.
+    # Meetup RSS works but items carry no start date and all 10 duplicate the gcal.
+    #
+    # LEAD: app.amilia.com/api/v3/store/makernexus/activities returns 401, NOT 404 -
+    # the endpoint exists and is merely gated. Ask staff for a key; it would be
+    # better than all three sources above.
+    # The GCS bucket cannot be enumerated anonymously (401 on storage.objects.list).
+    # activities.json and camps.json were found by name-guessing but are stale and
+    # dateless; there may be a classes cache worth asking about.
 
-# --- Not yet wired up. Verify each is still operating before adding. ---
+
+# =============================================================================
+# NOT YET WIRED UP
+# =============================================================================
 #
-# sf:         Double Union, The Shed, MakeX, Port Product Lab, SFPL makerspaces
-# east-bay:   Counter Culture Labs, Mothership HackerMoms, Circuit Launch,
-#             The Crucible, Bay Area Maker Farm, PEV Works
-# south-bay:  BioCurious, School of Visual Philosophy, Foothill College Makerspace,
-#             Kitchentown, Coyote Grange
-# north-bay:  Chimera Arts (Sebastopol), Cyber Garage (Marin), Benicia Makerspace
+# Discovered 2026-08-05 by mining makernexuswiki.com, whose directory at
+# /wiki/Maker_Spaces_in_the_US_and_Canada is the best human-maintained list of
+# Bay Area spaces found. FRESHNESS WARNING: most "defunct" flags there come from
+# a single maintenance pass dated 2024-03-21 and some pages are untouched since
+# 2017. Verify independently before adding any of these.
 #
-# Aggregators for discovery/cross-check only, never as authoritative:
+# Worth pursuing:
+#   The Compound Gallery      Emeryville      thecompoundgallery.com
+#       Best of the batch - screen printing, etching, letterpress, ceramics,
+#       metal, blacksmithing, wood, plus 3D printers and laser/vinyl cutters.
+#       Likely a real class catalog.
+#   Dept. of Spontaneous Combustion  Oakland  spontaneousfire.com
+#       Fire arts / metal. Public Tuesdays - a standing weekly event.
+#   Queerious Labs            San Francisco   queeriouslabs.com
+#   Girls Garage              Berkeley        girlsgarage.org
+#   Robot Garden              Livermore       robotgarden.org
+#   Lower 48 Woodshop         Oakland         lower48.org
+#   Santa Clara Adult Ed woodshop  Santa Clara  santaclaraadulted.asapconnected.com
+#       Runs on ASAP Connected, which may expose a course feed.
+#   South SF Public Library (LibLab)  South SF  (wiki URL stale, 404s - find current)
+#   Foster City Library makerspace    Foster City  smcl.org  (status unverified)
+#   Paw Print Prototyping     South Bay?      pawprintprototyping.org
+#   Idea Fab Labs             Santa Cruz      santacruz.ideafablabs.com
+#       Outside the four current regions - decide whether it is in scope.
+#   Hayward Techies           Hayward         haywardtechies.club
+#       NOT an operating space - a group trying to start one. Lead only.
+#
+# Do not chase - confirmed or probably defunct:
+#   TechShop / TheShop.build (closed 2017-2019), ManyLabs (domain gone),
+#   T8 Fab (domain gone), Sheet Metal Alchemist (domain reassigned),
+#   FabLab SF (server error), Studio for Metropolitan Craft (never a space).
+#   Liberating Ourselves Locally closed in 2022.
+#
+# From the original brief, still unverified:
+#   sf:         Double Union, The Shed, MakeX, Port Product Lab, SFPL makerspaces
+#   east-bay:   Counter Culture Labs (no feed - see the Omni Airtable lead under
+#               sudo-room), Mothership HackerMoms, Circuit Launch, The Crucible,
+#               Bay Area Maker Farm, PEV Works
+#   south-bay:  BioCurious, School of Visual Philosophy, Foothill College
+#               Makerspace, Kitchentown, Coyote Grange
+#   north-bay:  Chimera Arts (Sebastopol), Cyber Garage (Marin), Benicia Makerspace
+#
+# Discovery aids, not sources: Bay Area Consortium of Hackerspaces
+# (wiki.hackerspaces.org/Bay_Area_Consortium_of_Hackerspaces),
+# wiki.hackerspaces.org/List_of_Hacker_Spaces, and the interactive map at
+# maps.app.goo.gl/goaAddj1MVvbP4yr9. The wiki notes these carry different data
+# from each other, so cross-reference.
+#
+# Aggregators for discovery/cross-check only, never authoritative:
 #   dothebay.com/venues/{slug}, sf.funcheap.com, missionlocal.org/venue/{slug}
 #
-# Deliberately excluded: Meetup. Gated behind Pro + OAuth, ToS forbids scraping,
-# and for most of these spaces it duplicates their own calendar. Revisit only if
-# a space is Meetup-only.
+# SPACEAPI: checked directory.spaceapi.io on 2026-08-05 - 249 spaces registered
+# worldwide, overwhelmingly European. Sudo Room is the only Bay Area space listed
+# and its endpoint is dead (see its `spaceapi:` block). Every other space here is
+# `status: none`. Worth re-polling the directory occasionally for new Bay Area
+# registrations: a space that registers is a space that wants to be aggregated.
+# Do not build a `spaceapi` adapter until at least one live local endpoint exists -
+# when one does, it is a thin wrapper that reads feeds.calendar.url and hands it to
+# the existing ics/gcal_ics adapter matching feeds.calendar.type.
+#
+# MEETUP POLICY: excluded by default - the open API is retired, what remains is
+# OAuth-gated GraphQL behind a paid Pro subscription, and scraping the
+# client-rendered pages violates their ToS. Their PUBLISHED feed endpoints
+# (/events/rss/ and /events/ical/) are a separate question and were tested per
+# space on 2026-08-05. Findings: the RSS feeds carry no event start date at all
+# (only pubDate), making them useless as event sources; the iCal feed does carry
+# real dates but caps at 10 events. Hacker Dojo is the one documented exception,
+# because Meetup is its only surviving source.
