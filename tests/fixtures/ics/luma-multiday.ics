@@ -1,0 +1,37 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//lu.ma//Luma//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:Frontier Tower SF
+REFRESH-INTERVAL;VALUE=DURATION:PT12H
+BEGIN:VEVENT
+UID:evt-multiday@events.lu.ma
+SUMMARY:Frontier Tower Hackathon
+DTSTART;VALUE=DATE:20260810
+DTEND;VALUE=DATE:20260813
+DTSTAMP:20260801T000000Z
+LAST-MODIFIED:20260802T171500Z
+LOCATION:995 Market St, San Francisco, CA
+URL:https://luma.com/frontier-hackathon
+DESCRIPTION:Three days of building. Hosted by Frontier Tower.
+END:VEVENT
+BEGIN:VEVENT
+UID:evt-singleday@events.lu.ma
+SUMMARY:Community Dinner
+DTSTART;VALUE=DATE:20260815
+DTEND;VALUE=DATE:20260816
+DTSTAMP:20260801T000000Z
+URL:https://luma.com/frontier-dinner
+END:VEVENT
+BEGIN:VEVENT
+UID:evt-timed@events.lu.ma
+SUMMARY:LASER FRYDAYS: Laser Cutter Training
+DTSTART:20260822T010000Z
+DTEND:20260822T030000Z
+DTSTAMP:20260801T000000Z
+LOCATION:https://luma.com/laser-frydays
+URL:https://luma.com/laser-frydays
+ORGANIZER;CN="Laurence Ion":mailto:hello@frontiertower.test
+END:VEVENT
+END:VCALENDAR
