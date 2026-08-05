@@ -270,7 +270,13 @@ This holds only while all of the following are true. They are the argument, not 
 
 - **Honest User-Agent with a working contact address.** Never impersonate a browser or
   another crawler to obtain a more permissive group. That would be evasion and would void
-  everything above.
+  everything above. The contact value is injected from `$MAKER_CALENDAR_CONTACT` so it stays
+  out of git — see `.env.example`. **The loader must fail loudly if it is unset or still
+  points at `example.com`.** A run with no real contact is a bug, not a degraded mode:
+  everything in this section depends on someone being able to reach us. Prefer a URL to an
+  about page over a bare address; that page is also where the one-email opt-out lives.
+  Note that **launchd does not read your shell profile**, so the nightly job must load `.env`
+  explicitly or carry the value in the plist's `EnvironmentVariables`.
 - **Fetch only the URLs in `sources.yaml`.** No crawling, no link-following, no sitemap
   walking. This is what makes "we only want the events" a description of behavior rather
   than of intent.

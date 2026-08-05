@@ -61,7 +61,15 @@
 
 defaults:
   timezone: America/Los_Angeles
-  user_agent: "bayarea-maker-calendar/0.1 (+https://brennan.sstools.co; contact: TODO@example.com)"
+  # The contact is injected from the environment so it never lands in git.
+  # ${MAKER_CALENDAR_CONTACT} is expanded by the config loader, which MUST fail
+  # loudly when the variable is unset or still contains "example.com". Never
+  # substitute a placeholder or an empty string: this header ships on every
+  # request we make, and being honestly identifiable is what our robots.txt
+  # position rests on (see CLAUDE.md). A run with no real contact is a bug, not
+  # a degraded mode.
+  # Prefer a URL over an email once the about page exists - see .env.example.
+  user_agent: "bayarea-maker-calendar/0.1 (+${MAKER_CALENDAR_CONTACT})"
   rate_limit_seconds: 2
   horizon_days: 120
 
