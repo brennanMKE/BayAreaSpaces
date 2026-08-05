@@ -36,6 +36,7 @@ publish, because a 304 has no body to parse.
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 from pathlib import Path
 
 import httpx
@@ -527,8 +528,19 @@ def offline_llm():
 
 
 def feed_body(url: httpx.URL) -> bytes:
+    """One event per feed, with a UID **and a title** derived from the feed.
+
+    The title varies as well as the UID since issue 0015: dedupe merges
+    same-space events that start within 30 minutes and carry near-identical
+    titles, so a fixture serving one identically-named event to both of a
+    space's feeds would legitimately collapse to a single record and the
+    carry-forward counts here would be measuring dedupe instead.
+    """
     slug = "".join(char if char.isalnum() else "-" for char in str(url))
-    return ICS_BODY.replace(b"UID:evt-1@test", f"UID:evt-{slug}@test".encode())
+    digest = hashlib.sha1(str(url).encode()).hexdigest()[:8]
+    return ICS_BODY.replace(
+        b"UID:evt-1@test", f"UID:evt-{slug}@test".encode()
+    ).replace(b"SUMMARY:Open Shop Night", f"SUMMARY:Workshop {digest}".encode())
 
 
 def healthy_transport(etag: str | None = None) -> httpx.MockTransport:

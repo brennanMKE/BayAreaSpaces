@@ -31,6 +31,7 @@ startup failure and it is always a one-line fix.
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 from pathlib import Path
 
 import httpx
@@ -104,13 +105,23 @@ class FakeClock:
 
 
 def feed_body(url: httpx.URL) -> bytes:
-    """The fixture calendar, with a UID derived from the feed it came from.
+    """The fixture calendar, with a UID **and a title** derived from the feed.
 
-    Two different feeds ship two different UIDs, which is the normal case. The
-    collision case is tested separately by pinning ``body``.
+    Two different feeds ship two different events, which is the normal case.
+    The title has to vary as well as the UID since issue 0015: dedupe matches
+    on start time plus fuzzy title, so a fixture where thirteen sources all
+    served one identically-named event at one address would legitimately
+    collapse to a single record and every count in this file would stop
+    measuring what it says it measures. The digest keeps the titles far apart
+    under ``token_set_ratio`` without making them unreadable.
+
+    The duplicate cases are tested separately by pinning ``body``.
     """
     slug = "".join(char if char.isalnum() else "-" for char in str(url))
-    return ICS_BODY.replace(b"UID:evt-1@test", f"UID:evt-{slug}@test".encode())
+    digest = hashlib.sha1(str(url).encode()).hexdigest()[:8]
+    return ICS_BODY.replace(
+        b"UID:evt-1@test", f"UID:evt-{slug}@test".encode()
+    ).replace(b"SUMMARY:Open Shop Night", f"SUMMARY:Workshop {digest}".encode())
 
 
 def calendar_transport(body: bytes | None = None) -> httpx.MockTransport:
@@ -753,27 +764,76 @@ def test_raw_archive_is_written_before_anything_parses(env, tmp_path: Path, regi
     assert (day / written[0]).read_bytes().startswith(b"BEGIN:VCALENDAR")
 
 
-def test_duplicate_uids_are_collapsed_rather_than_aborting_the_publish(
+def test_one_event_syndicated_through_two_feeds_is_merged_not_duplicated(
     env, tmp_path: Path, registry
 ):
-    """One collision must not take the whole calendar down with it.
+    """Both of Hacker Dojo's feeds pinned to one event.
 
-    ``emit_ics`` refuses a calendar with two VEVENTs sharing a UID, and it is
-    right to — but that refusal is fatal to the entire run, and real dedupe is
-    issue 0015. Both of Hacker Dojo's feeds are pinned to one UID here.
+    Since issue 0015 this is dedupe's case rather than the floor's: same space,
+    same start, identical title. It merges, the higher-``trust`` feed's record
+    survives, and the publish is unaffected — which is what
+    ``collapse_uid_collisions`` was standing in for.
     """
     report = run_pipeline(
         registry,
         space_id="hacker-dojo",
         out_dir=tmp_path / "out",
         raw_dir=tmp_path / "raw",
-        transport=calendar_transport(ICS_BODY),  # identical UID from both feeds
+        transport=calendar_transport(ICS_BODY),  # identical event from both feeds
         sleep=noop_sleep,
         clock=FakeClock(),
         now=FIXED_NOW,
         llm_probe=offline_llm,
     )
 
+    assert report.merge_count == 1
+    assert report.dedupe_result is not None
+    merge = report.dedupe_result.merges[0]
+    assert merge.winner_source_label == "meetup-ical"  # trust 100
+    assert merge.loser_source_label == "luma-calendar"  # trust 90
+    assert report.event_count == 1
+    assert report.published is True
+    assert report.exit_code == EXIT_OK
+    assert (tmp_path / "out" / STAGING_DIRNAME / "calendar.ics").is_file()
+
+
+def test_a_uid_collision_outside_dedupes_window_is_still_collapsed(
+    env, tmp_path: Path, registry
+):
+    """The floor beneath dedupe, and why it is still wanted.
+
+    ``emit_ics`` refuses a calendar with two VEVENTs sharing a UID, and it is
+    right to — but that refusal is fatal to the entire run. Dedupe cannot help
+    here: these two events share a UID while starting five hours apart under
+    different names, so no start-plus-title rule will ever pair them.
+    """
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/robots.txt":
+            return httpx.Response(404)
+        body = ICS_BODY
+        if "meetup" not in str(request.url):  # the Luma feed; lu.ma, not "luma"
+            # Same UID, five hours later, a different event entirely.
+            body = ICS_BODY.replace(b"DTSTART:20260810T180000Z", b"DTSTART:20260810T230000Z")
+            body = body.replace(b"DTEND:20260810T200000Z", b"DTEND:20260811T010000Z")
+            body = body.replace(b"SUMMARY:Open Shop Night", b"SUMMARY:Board Game Evening")
+        return httpx.Response(
+            200, content=body, headers={"Content-Type": "text/calendar; charset=utf-8"}
+        )
+
+    report = run_pipeline(
+        registry,
+        space_id="hacker-dojo",
+        out_dir=tmp_path / "out",
+        raw_dir=tmp_path / "raw",
+        transport=httpx.MockTransport(handler),
+        sleep=noop_sleep,
+        clock=FakeClock(),
+        now=FIXED_NOW,
+        llm_probe=offline_llm,
+    )
+
+    assert report.merge_count == 0
     assert report.uid_collisions == ["hacker-dojo:evt-1@test"]
     assert report.event_count == 1
     assert report.published is True

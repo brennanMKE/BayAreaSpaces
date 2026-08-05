@@ -8,7 +8,7 @@ costs nothing::
                         |- for each space, for each enabled source:
                         |     fetch (conditional GET, rate limit, robots) -> raw/
                         |     adapter -> normalize -> filter
-                        |- dedupe across all spaces        (issue 0015, not yet)
+                        |- dedupe across all spaces        (issue 0015)
                         |- enrich  <- the only model stage (issue 0029, not yet)
                         |- health gates                    (issue 0016, not yet)
                         `- publish (out/, later Postgres) + health.json (0017)
@@ -73,7 +73,7 @@ night; a ``blocked`` one emits nothing, ever. ``--dry-run`` reads that store and
 writes none of it. The reasoning for all of it lives in
 :mod:`pipeline.carry_forward` and in :func:`run_pipeline`.
 
-Implemented by issue 0012, extended by issue 0014.
+Implemented by issue 0012, extended by issues 0014 and 0015.
 """
 
 from __future__ import annotations
@@ -107,6 +107,7 @@ from pipeline.config import (
     Space,
     load_registry,
 )
+from pipeline.dedupe import DedupeResult, dedupe, trust_map
 from pipeline.emit_ics import EmitResult, emit_ics
 from pipeline.fetch import FetchError, FetchResult, Fetcher, Outcome, request_url, source_label
 from pipeline.filters import filter_normalization
@@ -635,9 +636,11 @@ class RunReport:
     events: list[Event] = field(default_factory=list)
     #: One entry per source that republished stored events, failure or 304.
     carry_forwards: list[CarryForward] = field(default_factory=list)
-    #: UIDs seen more than once and collapsed to first-seen. Real dedupe is
-    #: issue 0015; a non-empty list here is material for it.
+    #: UIDs seen more than once and collapsed to first-seen. The floor beneath
+    #: dedupe, not a substitute for it — see :func:`collapse_uid_collisions`.
     uid_collisions: list[str] = field(default_factory=list)
+    #: What dedupe (issue 0015) did. ``None`` only when it did not run.
+    dedupe_result: DedupeResult | None = None
 
     lm_studio: LmStudioStatus | None = None
     enrich_skipped_reason: str | None = None
@@ -657,6 +660,11 @@ class RunReport:
     @property
     def event_count(self) -> int:
         return len(self.events)
+
+    @property
+    def merge_count(self) -> int:
+        """Duplicates dedupe folded away tonight. 0 when it did not run."""
+        return self.dedupe_result.merge_count if self.dedupe_result else 0
 
     @property
     def spaces_seen(self) -> int:
@@ -725,6 +733,7 @@ class RunReport:
                 "skipped": len(self.skipped),
                 "failed": len(self.failed),
                 "events": self.event_count,
+                "merged": self.merge_count,
                 "carried_forward_sources": len(self.carried_forward),
                 "carried_forward_events": self.carried_forward_event_count,
                 "escalated_sources": len(self.escalated),
@@ -734,6 +743,7 @@ class RunReport:
             "lm_studio": self.lm_studio.as_dict() if self.lm_studio else None,
             "enrich_skipped_reason": self.enrich_skipped_reason,
             "dedupe_skipped_reason": self.dedupe_skipped_reason,
+            "dedupe": self.dedupe_result.summary() if self.dedupe_result else None,
             "uid_collisions": list(self.uid_collisions),
             "health": self.health.as_dict(),
             "emit": self.emit.summary() if self.emit else None,
@@ -1104,27 +1114,28 @@ def run_pipeline(
 
     # --- dedupe (issue 0015) --------------------------------------------------
     #
-    # Real dedupe is fuzzy-title-plus-start matching resolved by ``trust``, and
-    # it is issue 0015. All that happens tonight is the floor: exact UID
-    # collisions are collapsed so one duplicated event cannot abort the publish
-    # for every space at once. See collapse_uid_collisions().
-    report.dedupe_skipped_reason = "dedupe is not implemented yet (issue 0015)"
+    # Fuzzy-title-plus-start matching resolved by ``trust``, across sources and
+    # then across spaces. See pipeline/dedupe.py for the rule and for why the
+    # 30-minute window is what makes comparing titles safe at all.
+    result = dedupe(report.events, trust=trust_map(registry))
+    report.dedupe_result = result
+    report.events = list(result.events)
+
+    # The floor stays underneath. Two events can share a UID and be further
+    # apart than dedupe's window — a source reusing one UID for two occurrences
+    # does exactly that — and emit_ics refuses to publish a calendar containing
+    # two VEVENTs with one UID, fatally, for every space at once.
     report.events, collisions = collapse_uid_collisions(report.events)
     report.uid_collisions = collisions
     if collisions:
         LOG.warning(
-            "%d duplicate UIDs collapsed to first-seen (%s%s). Real dedupe is "
-            "issue 0015; this is only the floor that keeps one collision from "
-            "aborting the whole publish.",
+            "%d duplicate UIDs survived dedupe and were collapsed to first-seen "
+            "(%s%s). Dedupe matches on start and title; an exact UID collision "
+            "outside its window is a different bug and wants looking at.",
             len(collisions),
             ", ".join(sorted(set(collisions))[:5]),
             "…" if len(set(collisions)) > 5 else "",
         )
-    LOG.info(
-        "%s; %d events pass through unmerged",
-        report.dedupe_skipped_reason,
-        report.event_count,
-    )
 
     # --- enrich: the only model stage, and never load-bearing -----------------
     if no_llm:
@@ -1231,10 +1242,21 @@ def print_run_report(report: RunReport, stream: Any = None) -> None:
         )
     for alert in report.alerts:
         print(f"ALERT:   {alert}", file=out)
+    if report.dedupe_result is not None:
+        merged = report.dedupe_result
+        print(
+            f"dedupe:  {merged.merge_count} merged "
+            f"({merged.merges_by_kind['within_space']} within a space, "
+            f"{merged.merges_by_kind['cross_space']} across spaces), "
+            f"{merged.near_miss_count} near misses",
+            file=out,
+        )
+    elif report.dedupe_skipped_reason:
+        print(f"dedupe:  skipped — {report.dedupe_skipped_reason}", file=out)
     if report.uid_collisions:
         print(
-            f"dedupe:  {len(report.uid_collisions)} duplicate UIDs collapsed to "
-            "first-seen (real dedupe is issue 0015)",
+            f"dedupe:  {len(report.uid_collisions)} duplicate UIDs survived "
+            "dedupe and were collapsed to first-seen",
             file=out,
         )
     if report.enrich_skipped_reason:
