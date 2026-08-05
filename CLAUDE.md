@@ -251,16 +251,38 @@ Two further rules from the same survey:
   Shop's AI-agent group collapses into a no-op, while `lower48.org` gives ClaudeBot,
   anthropic-ai, GPTBot, CCBot and 21 others their own `Disallow: /`.
 
-### Open question: do AI-agent disallows bind this pipeline?
+### AI-agent disallows: settled 2026-08-05
 
-`lower48.org` disallows named AI agents but permits `*`. The pipeline is a plain HTTP
-fetcher with an honest User-Agent and a contact address, directed by a human — so the letter
-of the file permits it, but switching User-Agent to step around a block aimed at AI agents is
-exactly the route-around the rule above forbids.
+Some hosts (`lower48.org`) disallow ClaudeBot, anthropic-ai, GPTBot, CCBot and similar by
+name while permitting `*`. **The pipeline follows the `*` group and may fetch.** Under
+RFC 9309 a crawler matches exactly one group — the one naming its product token, or `*` if
+none matches; groups do not merge. `bayarea-maker-calendar` matches no named group. Sites
+enumerate specific bots precisely because they want different rules for different agents,
+and those rules target training-corpus ingestion, not an aggregator that reads a calendar
+and links back.
 
-**Until this is settled, treat an AI-agent disallow as blocking and ask the space directly.**
-That is consistent with the good-citizen section and costs one email. Lower 48 has no feed to
-collect anyway, so nothing is lost by being conservative while the question is open.
+**But a Claude/Codex research agent browsing these sites is a different actor and IS covered
+by those disallows.** Respect them when researching. The nightly pipeline and an AI agent
+doing discovery are not interchangeable, and the permission that applies to one does not
+transfer to the other.
+
+This holds only while all of the following are true. They are the argument, not decoration:
+
+- **Honest User-Agent with a working contact address.** Never impersonate a browser or
+  another crawler to obtain a more permissive group. That would be evasion and would void
+  everything above.
+- **Fetch only the URLs in `sources.yaml`.** No crawling, no link-following, no sitemap
+  walking. This is what makes "we only want the events" a description of behavior rather
+  than of intent.
+- **Path-level disallows bind us regardless of group.** `lower48.org` disallows
+  `?format=ical` and `?format=json` for `*`, so those stay off-limits even though we are
+  permitted generally.
+- **Honor `Crawl-delay`** and use conditional GET, so steady state is mostly 304s.
+- **A one-email opt-out, honored immediately and without argument.** `robots.txt` is a blunt
+  instrument written for crawlers; a human asking us to stop outranks it. Being technically
+  in the right is not the goal.
+
+When emailing a space anyway, just ask. An explicit yes retires the question for that host.
 - Meetup is excluded by default: the open API is retired, what remains is OAuth-gated
   GraphQL behind a paid Pro subscription, and scraping the client-rendered pages violates
   their ToS. Their *published* feed endpoints are a separate question and were tested per

@@ -337,11 +337,12 @@ spaces:
       page is stale and still describes NIMBY in the present tense.
       ROBOTS - READ BEFORE FETCHING: www.lower48.org/robots.txt gives ClaudeBot,
       anthropic-ai, GPTBot, CCBot and 21 others their own "Disallow: /" group.
-      This is NOT the collapsed no-op group seen on boxshopsf.org. Whether that
-      blocks this pipeline is an OPEN POLICY QUESTION - see CLAUDE.md. Until it
-      is settled, treat this space as ask-permission-first. ?format=json /
-      json-pretty / ical / page-context / main-content are Disallow'ed for
-      everyone; ?format=rss is allowed.
+      This is NOT the collapsed no-op group seen on boxshopsf.org. Settled
+      2026-08-05 (see CLAUDE.md): the pipeline matches "*" and may fetch under
+      its own honest user-agent, but an AI research agent IS covered by those
+      disallows and must not. Separately, ?format=json / json-pretty / ical /
+      page-context / main-content are Disallow'ed for EVERYONE and stay
+      off-limits; ?format=rss is allowed.
     sources: []
     # --- NOTHING IS WIRED UP. Do not enable anything below without a fresh
     #     fetch returning a real, dated event, and not before the robots
