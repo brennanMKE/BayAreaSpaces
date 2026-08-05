@@ -1,0 +1,42 @@
+[project]
+name = "bayarea-maker-calendar"
+version = "0.1.0"
+description = "Nightly aggregator for Bay Area makerspace event feeds"
+readme = "README.md"
+requires-python = ">=3.11"
+
+# Every dependency is pinned with `==`. This job runs unattended at 03:15 under
+# launchd, and a surprise upgrade to `icalendar` or `recurring-ical-events` is
+# exactly the kind of thing that breaks RRULE expansion silently — a green run
+# that publishes an empty or wrong calendar. Bump these deliberately, with the
+# test suite as the gate. See issue 0004.
+dependencies = [
+    "httpx[http2]==0.28.1",         # HTTP/2, conditional GET, one client for the run
+    "icalendar==7.2.2",             # the reason this project is Python
+    "recurring-ical-events==3.8.2", # RRULE expansion clipped to the horizon
+    "extruct==0.18.0",              # JSON-LD: @graph, arrays and ItemList wrappers
+    "python-dateutil==2.9.0.post0", # date math against the known source timezone
+    "rapidfuzz==3.14.5",            # cross-source / cross-space dedupe
+    "feedgen==1.0.0",               # RSS emission
+    "pydantic==2.13.4",             # validates all local-model output, always
+    "PyYAML==6.0.3",                # sources.yaml, the registry
+]
+
+[dependency-groups]
+dev = [
+    "pytest==9.1.1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["pipeline"]
+
+# Lets `uv run pytest` work from the repo root with no arguments.
+[tool.pytest.ini_options]
+minversion = "9.0"
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra"
