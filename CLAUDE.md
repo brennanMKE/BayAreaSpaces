@@ -184,6 +184,15 @@ being asked to.
   Reuse the source UID namespaced as `{space_id}:{source_uid}`; otherwise
   `sha1(space_id + start_utc + normalize(title))[:16]`. Never include a scrape timestamp,
   page position, or any LLM output in a UID.
+  **A source UID is not unique after RRULE expansion.** Every occurrence of a series carries
+  the same `UID` — one Sudo Room series has 17 occurrences sharing one. Namespacing on
+  `{space_id}:{source_uid}` alone silently collapses a whole series into a single event, which
+  looks like a working feed with suspiciously few events. Recurring instances must additionally
+  carry their occurrence start, i.e. `{space_id}:{source_uid}:{start_utc}`. Non-recurring
+  events keep the two-part form so their UIDs stay stable.
+  Related trap found in the same pass: `RECURRENCE-ID` is set on *every* expanded occurrence,
+  including non-recurring ones, so it cannot be used to detect a series. Read `RRULE`/`RDATE`
+  off the unexpanded VEVENT instead.
 - **Never let a naive datetime past `normalize.py`.** Parse to aware immediately, store UTC,
   carry the original tz string. Assert and fail the run.
 - **The model returns source-verbatim date strings**, never computed ISO timestamps.
