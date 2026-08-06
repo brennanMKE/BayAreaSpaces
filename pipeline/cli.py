@@ -34,9 +34,10 @@ way to be exercised.
 Six decisions worth stating
 ---------------------------
 
-**Unimplemented adapters skip, they do not crash.** Four of the ten adapter
+**Unimplemented adapters skip, they do not crash.** Five of the ten adapter
 names in ``sources.yaml`` are implemented today (``ics``, ``gcal_ics``,
-``tribe_rest``, ``jsonld``); the other six are issues 0021-0025 and 0028. A
+``tribe_rest``, ``jsonld``, ``embedded_json``); the other five are issues
+0022-0025 and 0028. A
 registry entry naming one of those is reported as skipped with the issue number,
 so a run today produces the Tier A calendar rather than a traceback.
 
@@ -91,6 +92,7 @@ from typing import Any
 import httpx
 
 from pipeline import __version__
+from pipeline.adapters.embedded_json import parse_embedded_json
 from pipeline.adapters.gcal_ics import parse_gcal_ics
 from pipeline.adapters.ics import IcsParse, parse_ics
 from pipeline.adapters.jsonld import parse_jsonld
@@ -272,6 +274,15 @@ class AdapterEntry:
     #: first one.
     paginates: bool = False
 
+    #: True when the adapter needs the registry entry it came from but makes no
+    #: further requests. ``embedded_json`` (issue 0021) is the case: the blob it
+    #: reads is identified by ``script_id`` in ``sources.yaml``, so it needs the
+    #: ``SourceRef`` and has no use for the ``Fetcher``. Kept apart from
+    #: :attr:`paginates` because "wants configuration" and "will make more HTTP
+    #: requests" are different promises, and only the second one has to be true
+    #: for the rate limiter and ``raw/`` to be in play.
+    needs_source: bool = False
+
     @property
     def implemented(self) -> bool:
         return self.parse is not None
@@ -284,7 +295,7 @@ class AdapterEntry:
 
 
 #: The dispatch table. ``sources.yaml`` is the only place adapters are *named*;
-#: this is the only place they are *resolved*. Six of the ten are still
+#: this is the only place they are *resolved*. Five of the ten are still
 #: pending, and a registry entry naming one is skipped with its issue number
 #: rather than crashing the run.
 ADAPTERS: dict[str, AdapterEntry] = {
@@ -292,7 +303,9 @@ ADAPTERS: dict[str, AdapterEntry] = {
     "gcal_ics": AdapterEntry("gcal_ics", "0008", parse_gcal_ics),
     "tribe_rest": AdapterEntry("tribe_rest", "0019", parse_tribe_rest, paginates=True),
     "jsonld": AdapterEntry("jsonld", "0020", parse_jsonld, paginates=True),
-    "embedded_json": AdapterEntry("embedded_json", "0021"),
+    "embedded_json": AdapterEntry(
+        "embedded_json", "0021", parse_embedded_json, needs_source=True
+    ),
     "json": AdapterEntry("json", "0022"),
     "nextdata": AdapterEntry("nextdata", "0023"),
     "bookwhen_html": AdapterEntry("bookwhen_html", "0024"),
@@ -870,9 +883,14 @@ def process_source(
     # so it can follow the feed's *own* next-page link. Page 2 therefore goes
     # through the same rate limiter, the same robots decision and the same raw/
     # archive as page 1 — see AdapterEntry.paginates.
-    extra: dict[str, Any] = (
-        {"fetcher": fetcher, "ref": ref} if entry.paginates else {}
-    )
+    # An adapter that only needs its registry entry — embedded_json, whose blob
+    # is named by ``script_id`` — gets the ref and not the fetcher: it makes no
+    # further requests, and handing it one would suggest otherwise.
+    extra: dict[str, Any] = {}
+    if entry.paginates:
+        extra = {"fetcher": fetcher, "ref": ref}
+    elif entry.needs_source:
+        extra = {"ref": ref}
 
     try:
         parse = entry.parse(result, horizon_days=horizon_days, now=now, **extra)  # type: ignore[misc]

@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+<meta charset="UTF-8" />
+<title>Course Search | The Crucible</title>
+
+<!-- The drifted case: HTTP 200, a real page, every other JSON blob still in
+     place, and the catalog blob gone (renamed, moved, or now behind an XHR
+     endpoint). An adapter that returned [] here would look exactly like a
+     space with no classes. -->
+<script type="application/json" id="wp-block-settings">
+{"siteUrl":"https://www.thecrucible.org","isRTL":false}
+</script>
+<script type="application/json" id="fusion-slider-data">
+{"sliders":[{"id":18,"name":"home-hero"}],"autoplay":true}
+</script>
+<script type="application/json" id="ac-course-data-v2">
+{"note":"renamed, and deliberately not read: this adapter matches by name"}
+</script>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"Course","name":"Course Search"}
+</script>
+</head>
+<body>
+<div id="ac-course-search-root">Loading classes…</div>
+<script type="text/javascript" src="/wp-content/themes/Avada/assets/js/main.js"></script>
+</body>
+</html>

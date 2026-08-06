@@ -68,9 +68,10 @@ EXPECTED_ENABLED = 26
 EXPECTED_DISABLED = 4
 EXPECTED_TODO = 1
 #: enabled, not TODO, and naming an adapter that exists today (ics, gcal_ics,
-#: tribe_rest, jsonld). Issue 0019 added Ace's REST feed; issue 0020 added Ace's
-#: JSON-LD calendar page and The Box Shop's two-step Squarespace source.
-EXPECTED_RUNNABLE = 16
+#: tribe_rest, jsonld, embedded_json). Issue 0019 added Ace's REST feed; issue
+#: 0020 added Ace's JSON-LD calendar page and The Box Shop's two-step
+#: Squarespace source; issue 0021 added The Crucible's course-catalog blob.
+EXPECTED_RUNNABLE = 17
 
 ICS_BODY = b"""BEGIN:VCALENDAR\r
 VERSION:2.0\r
@@ -219,6 +220,32 @@ def jsonld_seed_body(url: httpx.URL) -> bytes:
     ).encode("utf-8")
 
 
+def embedded_json_body(url: httpx.URL) -> bytes:
+    """The Crucible's named ``ac-course-data`` blob — the ``embedded_json``
+    counterpart (issue 0021).
+
+    One course with one ``start_dates`` entry: Unix epoch **seconds**, local
+    ``America/Los_Angeles``. ``1787241600`` is 2026-08-20 09:00 PDT, inside the
+    horizon. The page carries a second, unrelated ``application/json`` blob so
+    the adapter is exercised finding its own by name.
+    """
+    digest = hashlib.sha1(str(url).encode()).hexdigest()[:8]
+    post_id = int(digest, 16) % 900000 + 100000
+    return (
+        "<!DOCTYPE html><html><head>"
+        '<script type="application/json" id="wp-block-settings">{"a":1}</script>'
+        '<script type="application/json" id="ac-course-data">'
+        f'[{{"id": {post_id}, '
+        f'"title": "Foundry Intensive {digest}", '
+        f'"url": "{url}", "price": "395", "member_price": "355.50", '
+        '"department": "Foundry", "audience": "Ages 16+", "level": "Entry Level", '
+        '"day": ["Saturday"], "format": ["Weekend"], "time_of_day": ["Morning"], '
+        '"hours": 16.0, "start_dates": [1787241600], "stocks": [3], '
+        '"is_in_stock": true}]'
+        "</script></head><body></body></html>"
+    ).encode("utf-8")
+
+
 def calendar_transport(body: bytes | None = None) -> httpx.MockTransport:
     """``robots.txt`` 404, TEC REST as JSON, JSON-LD pages as HTML, rest as ICS.
 
@@ -243,6 +270,15 @@ def calendar_transport(body: bytes | None = None) -> httpx.MockTransport:
                 200,
                 content=jsonld_seed_body(url),
                 headers={"Content-Type": "application/rss+xml; charset=utf-8"},
+            )
+        if body is None and url.path == "/course-search/":
+            # The Crucible's named blob. Registered as embedded_json, and the
+            # ?department= parameter is deliberately never sent: it does nothing
+            # server-side, which is why this route ignores the query entirely.
+            return httpx.Response(
+                200,
+                content=embedded_json_body(url),
+                headers={"Content-Type": "text/html; charset=utf-8"},
             )
         if body is None and (url.path == "/calendar/" or url.path.startswith("/events/")):
             return httpx.Response(
@@ -368,8 +404,30 @@ def test_every_registry_adapter_has_a_dispatch_entry():
     assert set(ADAPTERS) == set(KNOWN_ADAPTERS)
 
 
-def test_only_the_calendar_tribe_and_jsonld_adapters_are_implemented_today():
-    assert implemented_adapters() == {"ics", "gcal_ics", "tribe_rest", "jsonld"}
+def test_only_the_calendar_tribe_jsonld_and_blob_adapters_are_implemented_today():
+    assert implemented_adapters() == {
+        "ics",
+        "gcal_ics",
+        "tribe_rest",
+        "jsonld",
+        "embedded_json",
+    }
+
+
+def test_one_adapter_needs_its_registry_entry_but_not_the_fetcher():
+    """``embedded_json`` (issue 0021) reads a blob named by ``script_id``.
+
+    It makes no further requests, so it gets the ``SourceRef`` and not the
+    ``Fetcher``: "wants configuration" and "will make more HTTP requests" are
+    different promises, and only the second one puts the rate limiter and
+    ``raw/`` in play.
+    """
+    entry = ADAPTERS["embedded_json"]
+    assert entry.needs_source is True
+    assert entry.paginates is False
+    assert not any(
+        other.needs_source for name, other in ADAPTERS.items() if name != "embedded_json"
+    )
 
 
 def test_two_adapters_need_the_fetcher_for_follow_up_requests():
@@ -390,7 +448,6 @@ def test_two_adapters_need_the_fetcher_for_follow_up_requests():
 
 def test_pending_adapters_name_the_issue_that_implements_them():
     expected = {
-        "embedded_json": "0021",
         "json": "0022",
         "nextdata": "0023",
         "bookwhen_html": "0024",
@@ -439,8 +496,9 @@ def test_validate_names_implemented_and_pending_adapters(env, tmp_path: Path, ca
 
     assert "ics" in out and "implemented (issue 0007)" in out
     assert "implemented (issue 0019)" in out  # tribe_rest
-    assert "implemented (issue 0020)" in out  # jsonld, since this issue
-    assert "NOT implemented (issue 0021)" in out  # embedded_json
+    assert "implemented (issue 0020)" in out  # jsonld
+    assert "implemented (issue 0021)" in out  # embedded_json, since this issue
+    assert "NOT implemented (issue 0022)" in out  # json
     assert "TODO (issue 0002)" in out  # sequoia-fabrica bookwhen-public
     assert "disabled" in out
 
@@ -530,13 +588,13 @@ def test_dry_run_publishes_every_runnable_source(env, tmp_path: Path, registry):
     # One VEVENT per feed, every one inside the horizon.
     assert all(record.horizon_count == 1 for record in report.ran)
 
-    # Three of the sixteen carry a `location_contains` filter that the
+    # Three of the seventeen carry a `location_contains` filter that the
     # fixture's Oakland address does not match, so they legitimately keep
     # nothing. Filters drop events silently — the point of asserting on the
-    # count rather than on 16 is that the drop shows up here if it changes.
+    # count rather than on 17 is that the drop shows up here if it changes.
     filtered_out = sum(record.filtered_out_count for record in report.ran)
     assert filtered_out == 3
-    assert report.event_count == EXPECTED_RUNNABLE - filtered_out == 13
+    assert report.event_count == EXPECTED_RUNNABLE - filtered_out == 14
     assert report.exit_code == EXIT_OK
     assert report.published is True
 
@@ -546,7 +604,9 @@ def test_unimplemented_adapter_is_skipped_with_its_issue_number(
 ):
     report = run_pipeline(
         registry,
-        space_id="the-crucible",  # embedded_json + json + nextdata, none implemented
+        # embedded_json is implemented (issue 0021); json, nextdata and rss are
+        # not, so this space still exercises the skip path.
+        space_id="the-crucible",
         out_dir=tmp_path / "out",
         raw_dir=tmp_path / "raw",
         transport=calendar_transport(),
@@ -567,13 +627,18 @@ def test_unimplemented_adapter_is_skipped_with_its_issue_number(
     assert report.exit_code == EXIT_OK
 
 
-def test_a_space_of_unimplemented_adapters_publishes_nothing(
+def test_a_space_with_no_usable_source_publishes_nothing(
     env, tmp_path: Path, registry
 ):
-    """Refusing to write an empty calendar is not the same as failing."""
+    """Refusing to write an empty calendar is not the same as failing.
+
+    Lower 48 has **no machine-readable event source at all** — a documented
+    state, not a broken entry. It took over this case from The Crucible when
+    issue 0021 made ``embedded_json`` runnable.
+    """
     report = run_pipeline(
         registry,
-        space_id="the-crucible",
+        space_id="lower-48",
         out_dir=tmp_path / "out",
         raw_dir=tmp_path / "raw",
         transport=calendar_transport(),
