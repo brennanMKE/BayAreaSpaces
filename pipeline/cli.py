@@ -34,10 +34,10 @@ way to be exercised.
 Six decisions worth stating
 ---------------------------
 
-**Unimplemented adapters skip, they do not crash.** Six of the ten adapter
+**Unimplemented adapters skip, they do not crash.** Seven of the ten adapter
 names in ``sources.yaml`` are implemented today (``ics``, ``gcal_ics``,
-``tribe_rest``, ``jsonld``, ``embedded_json``, ``json``); the other four are
-issues 0023-0025 and 0028. A
+``tribe_rest``, ``jsonld``, ``embedded_json``, ``json``, ``nextdata``); the
+other three are issues 0024, 0025 and 0028. A
 registry entry naming one of those is reported as skipped with the issue number,
 so a run today produces the Tier A calendar rather than a traceback.
 
@@ -97,6 +97,7 @@ from pipeline.adapters.gcal_ics import parse_gcal_ics
 from pipeline.adapters.ics import IcsParse, parse_ics
 from pipeline.adapters.json_doc import parse_json
 from pipeline.adapters.jsonld import parse_jsonld
+from pipeline.adapters.nextdata import parse_nextdata
 from pipeline.adapters.tribe_rest import parse_tribe_rest
 from pipeline.carry_forward import CarryForward, apply_carry_forward
 from pipeline.config import (
@@ -314,7 +315,10 @@ ADAPTERS: dict[str, AdapterEntry] = {
     # pages, and both consumers need the registry entry (`shape`, `min_total`).
     # `paginates=True` hands it the fetcher and the ref, which is exactly both.
     "json": AdapterEntry("json", "0022", parse_json, paginates=True),
-    "nextdata": AdapterEntry("nextdata", "0023"),
+    # Neither paginating nor configuration-hungry: the blob name
+    # (`__NEXT_DATA__`) and the payload paths are what make the adapter
+    # Eventbrite's, so it reads one page and needs nothing from the registry.
+    "nextdata": AdapterEntry("nextdata", "0023", parse_nextdata),
     "bookwhen_html": AdapterEntry("bookwhen_html", "0024"),
     "rss": AdapterEntry("rss", "0025"),
     "llm_html": AdapterEntry("llm_html", "0028"),

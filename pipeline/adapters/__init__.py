@@ -21,7 +21,10 @@ Registered adapters and the issue that implements each:
                  in the registry — issue 0022. The module is ``json_doc.py``,
                  not ``json.py``, so nothing in this package shadows the stdlib
                  name it depends on.
-``nextdata``     ``__NEXT_DATA__`` blob on Eventbrite organizer pages — issue 0023
+``nextdata``     ``__NEXT_DATA__`` blob on Eventbrite **organizer** pages, a
+                 thin ``embedded_json`` field map plus the three-field start
+                 assembly Eventbrite needs — issue 0023. Individual Eventbrite
+                 *event* pages still emit JSON-LD and stay with ``jsonld``.
 ``bookwhen_html``server-rendered Bookwhen agenda table — issue 0024
 ``rss``          RSS/Atom; only an event source when items carry a real start
                  date, which most do not — issue 0025

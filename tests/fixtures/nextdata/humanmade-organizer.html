@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Humanmade Events | Eventbrite</title>
+  <!--
+    Humanmade's organizer page as it stood on 2026-08-05, confirmed three ways
+    (plain curl, browser-UA curl, WebFetch): upcomingEventsTotal 0,
+    upcomingEvents [], hasMoreUpcoming false, metrics.totalEvents 0.
+
+    **This page is a success, not a failure.** The blob is here, it decodes, and
+    it declares zero. That is what the adapter has to be able to say — and, as
+    with the Crucible fixture, there is not one application/ld+json block on it.
+  -->
+  <script type="application/json" id="app-config">{"locale":"en_US"}</script>
+  <script id="__NEXT_DATA__" type="application/json">
+{
+  "props": {
+    "pageProps": {
+      "organizer": {
+        "id": "57286899753",
+        "name": "Humanmade",
+        "url": "https://www.eventbrite.com/o/humanmade-57286899753",
+        "bio": "A nonprofit advanced manufacturing training center in SoMa.",
+        "metrics": {"followers": "191", "totalEvents": 0}
+      },
+      "upcomingEvents": [],
+      "upcomingEventsTotal": 0,
+      "hasMoreUpcoming": false,
+      "collections": []
+    }
+  },
+  "page": "/organizer-profile",
+  "query": {"organizerId": "57286899753"},
+  "buildId": "5bLzESWhODLae_gctfpa1"
+}
+  </script>
+</head>
+<body><div id="__next"></div></body>
+</html>

@@ -9,11 +9,17 @@
 #   gcal_ics       Google Calendar public basic.ics (needs calendar_id)
 #   tribe_rest     The Events Calendar WP REST API
 #   jsonld         parse schema.org/Event from embedded <script type=application/ld+json>
-#   nextdata       parse __NEXT_DATA__ blob (Eventbrite organizer pages)
+#   nextdata       parse __NEXT_DATA__ blob (Eventbrite ORGANIZER pages only;
+#                  individual Eventbrite event pages still emit JSON-LD and
+#                  stay with `jsonld`). Needs no configuration: the blob name
+#                  and the props.pageProps.upcomingEvents path are what make it
+#                  this adapter. Reports a declared upcomingEventsTotal of 0 as
+#                  a clean zero, and a missing or renamed key as a failure.
 #   embedded_json  named <script type="application/json" id=...> blob in a
-#                  server-rendered page, plus a field map. Generalizes nextdata
-#                  (which is nextdata with script_id hardcoded); nextdata could
-#                  be reimplemented on top of it later. Needs `script_id`.
+#                  server-rendered page, plus a field map. Generalizes nextdata,
+#                  which is this adapter with script_id hardcoded to
+#                  __NEXT_DATA__ plus Eventbrite's three-field start assembly -
+#                  issue 0023 built it that way. Needs `script_id`.
 #   json           plain JSON document with a bespoke shape + field mapping.
 #                  Needs `shape` (one of the named maps in
 #                  pipeline/adapters/json_doc.py). Optional `min_total`: the

@@ -68,12 +68,13 @@ EXPECTED_ENABLED = 26
 EXPECTED_DISABLED = 4
 EXPECTED_TODO = 1
 #: enabled, not TODO, and naming an adapter that exists today (ics, gcal_ics,
-#: tribe_rest, jsonld, embedded_json, json). Issue 0019 added Ace's REST feed;
-#: issue 0020 added Ace's JSON-LD calendar page and The Box Shop's two-step
-#: Squarespace source; issue 0021 added The Crucible's course-catalog blob;
-#: issue 0022 added The Crucible's WooCommerce Store API and Maker Nexus's
-#: Amilia cache.
-EXPECTED_RUNNABLE = 19
+#: tribe_rest, jsonld, embedded_json, json, nextdata). Issue 0019 added Ace's
+#: REST feed; issue 0020 added Ace's JSON-LD calendar page and The Box Shop's
+#: two-step Squarespace source; issue 0021 added The Crucible's course-catalog
+#: blob; issue 0022 added The Crucible's WooCommerce Store API and Maker
+#: Nexus's Amilia cache; issue 0023 added the two enabled Eventbrite organizer
+#: pages (The Crucible's and Humanmade's).
+EXPECTED_RUNNABLE = 21
 
 ICS_BODY = b"""BEGIN:VCALENDAR\r
 VERSION:2.0\r
@@ -312,6 +313,51 @@ def amilia_cache_body(url: httpx.URL) -> bytes:
     ).encode("utf-8")
 
 
+def nextdata_body(url: httpx.URL) -> bytes:
+    """An Eventbrite organizer page — the ``nextdata`` counterpart (issue 0023).
+
+    One upcoming event, its start split across ``start_date`` + ``start_time`` +
+    ``timezone`` exactly as Eventbrite writes it, and a real
+    ``primary_venue.address``. ``upcomingEventsTotal`` agrees with the array,
+    because a disagreement is a reported failure and this fixture is here to
+    measure the run rather than the adapter.
+    """
+    digest = hashlib.sha1(str(url).encode()).hexdigest()[:8]
+    payload = {
+        "props": {
+            "pageProps": {
+                "organizer": {"id": digest, "name": "Test Organizer"},
+                "upcomingEventsTotal": 1,
+                "hasMoreUpcoming": False,
+                "upcomingEvents": [
+                    {
+                        "id": f"evt-{digest}",
+                        "name": f"Free Tour {digest}",
+                        "url": str(url),
+                        "summary": "Come make something.",
+                        "start_date": "2026-08-20",
+                        "start_time": "11:00",
+                        "timezone": "America/Los_Angeles",
+                        "primary_venue": {
+                            "name": "Test Venue",
+                            "address": {
+                                "localized_address_display": "1234 Test Ave, Oakland, CA"
+                            },
+                        },
+                    }
+                ],
+            }
+        },
+        "buildId": "test",
+    }
+    return (
+        "<!DOCTYPE html><html><head>"
+        '<script type="application/json" id="__NEXT_DATA__">'
+        f"{json.dumps(payload)}"
+        "</script></head><body></body></html>"
+    ).encode("utf-8")
+
+
 def calendar_transport(body: bytes | None = None) -> httpx.MockTransport:
     """``robots.txt`` 404, TEC REST and the two ``json`` documents as JSON,
     JSON-LD pages as HTML, rest as ICS.
@@ -364,6 +410,14 @@ def calendar_transport(body: bytes | None = None) -> httpx.MockTransport:
             return httpx.Response(
                 200,
                 content=embedded_json_body(url),
+                headers={"Content-Type": "text/html; charset=utf-8"},
+            )
+        if body is None and url.path.startswith("/o/"):
+            # An Eventbrite organizer page. Registered as nextdata since issue
+            # 0023; before it, these two sources skipped.
+            return httpx.Response(
+                200,
+                content=nextdata_body(url),
                 headers={"Content-Type": "text/html; charset=utf-8"},
             )
         if body is None and (url.path == "/calendar/" or url.path.startswith("/events/")):
@@ -490,7 +544,7 @@ def test_every_registry_adapter_has_a_dispatch_entry():
     assert set(ADAPTERS) == set(KNOWN_ADAPTERS)
 
 
-def test_only_the_calendar_tribe_jsonld_blob_and_json_adapters_are_implemented_today():
+def test_seven_of_the_ten_adapters_are_implemented_today():
     assert implemented_adapters() == {
         "ics",
         "gcal_ics",
@@ -498,6 +552,7 @@ def test_only_the_calendar_tribe_jsonld_blob_and_json_adapters_are_implemented_t
         "jsonld",
         "embedded_json",
         "json",
+        "nextdata",
     }
 
 
@@ -537,7 +592,6 @@ def test_three_adapters_need_the_fetcher_for_follow_up_requests():
 
 def test_pending_adapters_name_the_issue_that_implements_them():
     expected = {
-        "nextdata": "0023",
         "bookwhen_html": "0024",
         "rss": "0025",
         "llm_html": "0028",
@@ -586,8 +640,9 @@ def test_validate_names_implemented_and_pending_adapters(env, tmp_path: Path, ca
     assert "implemented (issue 0019)" in out  # tribe_rest
     assert "implemented (issue 0020)" in out  # jsonld
     assert "implemented (issue 0021)" in out  # embedded_json
-    assert "implemented (issue 0022)" in out  # json, since this issue
-    assert "NOT implemented (issue 0023)" in out  # nextdata
+    assert "implemented (issue 0022)" in out  # json
+    assert "implemented (issue 0023)" in out  # nextdata, since this issue
+    assert "NOT implemented (issue 0024)" in out  # bookwhen_html
     assert "TODO (issue 0002)" in out  # sequoia-fabrica bookwhen-public
     assert "disabled" in out
 
@@ -683,7 +738,7 @@ def test_dry_run_publishes_every_runnable_source(env, tmp_path: Path, registry):
     # count rather than on 19 is that the drop shows up here if it changes.
     filtered_out = sum(record.filtered_out_count for record in report.ran)
     assert filtered_out == 3
-    assert report.event_count == EXPECTED_RUNNABLE - filtered_out == 16
+    assert report.event_count == EXPECTED_RUNNABLE - filtered_out == 18
     assert report.exit_code == EXIT_OK
     assert report.published is True
 
@@ -693,9 +748,10 @@ def test_unimplemented_adapter_is_skipped_with_its_issue_number(
 ):
     report = run_pipeline(
         registry,
-        # embedded_json (0021) and json (0022) are implemented; nextdata is not,
-        # so this space still exercises the skip path.
-        space_id="the-crucible",
+        # Noisebridge's wiki source is `llm_html` (issue 0028), the last
+        # unimplemented adapter with an enabled source. The Crucible used to
+        # play this role and no longer can: issue 0023 implemented `nextdata`.
+        space_id="noisebridge",
         out_dir=tmp_path / "out",
         raw_dir=tmp_path / "raw",
         transport=calendar_transport(),
@@ -705,14 +761,14 @@ def test_unimplemented_adapter_is_skipped_with_its_issue_number(
         llm_probe=offline_llm,
     )
 
-    record = report.record_for("the-crucible", "eventbrite-organizer")
+    record = report.record_for("noisebridge", "wiki-recurring")
     assert record is not None
     assert record.status == "skipped"
     assert record.skipped_because == "adapter_not_implemented"
     assert "not yet implemented" in (record.reason or "")
-    assert "0023" in (record.reason or "")
+    assert "0028" in (record.reason or "")
     # Skipped, not crashed: the run finished and reported the whole space.
-    assert len(report.records) == 4
+    assert len(report.records) == 3
     assert report.exit_code == EXIT_OK
 
 
