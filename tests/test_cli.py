@@ -11,8 +11,8 @@ open a socket to ``localhost:1234``.
 
 What is being defended:
 
-**A run today produces a calendar.** Eight of the ten adapter names in
-``sources.yaml`` are still issues 0019-0025 and 0028. Meeting one must skip with
+**A run today produces a calendar.** Six of the ten adapter names in
+``sources.yaml`` are still issues 0021-0025 and 0028. Meeting one must skip with
 its issue number, not end the run — otherwise Phase 1 delivers nothing until
 Phase 2 is finished.
 
@@ -68,8 +68,9 @@ EXPECTED_ENABLED = 26
 EXPECTED_DISABLED = 4
 EXPECTED_TODO = 1
 #: enabled, not TODO, and naming an adapter that exists today (ics, gcal_ics,
-#: tribe_rest). Issue 0019 added the last of those and with it Ace's REST feed.
-EXPECTED_RUNNABLE = 14
+#: tribe_rest, jsonld). Issue 0019 added Ace's REST feed; issue 0020 added Ace's
+#: JSON-LD calendar page and The Box Shop's two-step Squarespace source.
+EXPECTED_RUNNABLE = 16
 
 ICS_BODY = b"""BEGIN:VCALENDAR\r
 VERSION:2.0\r
@@ -174,19 +175,82 @@ def tribe_body(url: httpx.URL) -> bytes:
     return json.dumps(payload).encode("utf-8")
 
 
+def jsonld_body(url: httpx.URL) -> bytes:
+    """One ``schema.org/Event`` in an ld+json block — the ``jsonld`` counterpart.
+
+    Same shape as :func:`feed_body`: one event, inside the horizon, with a title
+    far enough from the others that dedupe leaves it alone. Ace's ``/calendar/``
+    and The Box Shop's per-event pages both answer with this.
+    """
+    digest = hashlib.sha1(str(url).encode()).hexdigest()[:8]
+    return (
+        "<!DOCTYPE html><html><head>"
+        '<script type="application/ld+json">'
+        '{"@context":"https://schema.org","@type":"WebSite","name":"Test"}'
+        "</script>"
+        '<script type="application/ld+json">'
+        '{"@context":"https://schema.org","@type":"Event",'
+        f'"name":"Salon {digest}",'
+        f'"url":"{url}",'
+        '"startDate":"2026-08-12T18:00:00-07:00",'
+        '"endDate":"2026-08-12T21:00:00-07:00",'
+        '"description":"Come make something.",'
+        '"location":{"@type":"Place","name":"Test Venue",'
+        '"address":{"streetAddress":"1234 Test Ave","addressLocality":"Oakland",'
+        '"addressRegion":"CA"}}}'
+        "</script></head><body></body></html>"
+    ).encode("utf-8")
+
+
+def jsonld_seed_body(url: httpx.URL) -> bytes:
+    """The Box Shop's ``?format=rss`` seed list: one item, and **no date**.
+
+    ``pubDate`` is the post date, which is exactly why the adapter follows the
+    link rather than reading a date here (issue 0020).
+    """
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<rss version="2.0"><channel><title>Events</title>'
+        f"<link>{url}</link>"
+        "<item><title>Salon</title>"
+        f"<link>https://{url.host}/events/salon</link>"
+        "<pubDate>Mon, 29 Jun 2026 19:04:11 +0000</pubDate>"
+        "</item></channel></rss>"
+    ).encode("utf-8")
+
+
 def calendar_transport(body: bytes | None = None) -> httpx.MockTransport:
-    """Serves ``robots.txt`` as 404, TEC REST as JSON, everything else as ICS."""
+    """``robots.txt`` 404, TEC REST as JSON, JSON-LD pages as HTML, rest as ICS.
+
+    Every adapter in the dispatch table needs a body it can actually parse, or
+    the run's counts stop measuring the run and start measuring an adapter
+    correctly rejecting a payload it was never pointed at.
+    """
 
     def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path == "/robots.txt":
+        url = request.url
+        if url.path == "/robots.txt":
             return httpx.Response(404)
-        if body is None and request.url.path.startswith("/wp-json/tribe/"):
+        if body is None and url.path.startswith("/wp-json/tribe/"):
             return httpx.Response(
                 200,
-                content=tribe_body(request.url),
+                content=tribe_body(url),
                 headers={"Content-Type": "application/json; charset=utf-8"},
             )
-        payload = body if body is not None else feed_body(request.url)
+        if body is None and url.params.get("format") == "rss":
+            # The Box Shop's seed feed. Its links point at /events/<slug> below.
+            return httpx.Response(
+                200,
+                content=jsonld_seed_body(url),
+                headers={"Content-Type": "application/rss+xml; charset=utf-8"},
+            )
+        if body is None and (url.path == "/calendar/" or url.path.startswith("/events/")):
+            return httpx.Response(
+                200,
+                content=jsonld_body(url),
+                headers={"Content-Type": "text/html; charset=utf-8"},
+            )
+        payload = body if body is not None else feed_body(url)
         return httpx.Response(
             200, content=payload, headers={"Content-Type": "text/calendar; charset=utf-8"}
         )
@@ -304,21 +368,28 @@ def test_every_registry_adapter_has_a_dispatch_entry():
     assert set(ADAPTERS) == set(KNOWN_ADAPTERS)
 
 
-def test_only_the_calendar_and_tribe_adapters_are_implemented_today():
-    assert implemented_adapters() == {"ics", "gcal_ics", "tribe_rest"}
+def test_only_the_calendar_tribe_and_jsonld_adapters_are_implemented_today():
+    assert implemented_adapters() == {"ics", "gcal_ics", "tribe_rest", "jsonld"}
 
 
-def test_tribe_rest_is_the_one_adapter_that_paginates():
-    """It follows the feed's own ``next_rest_url``, so it needs the fetcher."""
+def test_two_adapters_need_the_fetcher_for_follow_up_requests():
+    """``tribe_rest`` follows ``next_rest_url``; ``jsonld`` follows a seed list.
+
+    Different reasons, one seam: both get the fetcher and the ``SourceRef`` so
+    their extra requests stay inside one rate limiter, one ``robots.txt``
+    decision and one ``raw/`` archive.
+    """
     assert ADAPTERS["tribe_rest"].paginates is True
+    assert ADAPTERS["jsonld"].paginates is True
     assert not any(
-        entry.paginates for name, entry in ADAPTERS.items() if name != "tribe_rest"
+        entry.paginates
+        for name, entry in ADAPTERS.items()
+        if name not in ("tribe_rest", "jsonld")
     )
 
 
 def test_pending_adapters_name_the_issue_that_implements_them():
     expected = {
-        "jsonld": "0020",
         "embedded_json": "0021",
         "json": "0022",
         "nextdata": "0023",
@@ -367,8 +438,9 @@ def test_validate_names_implemented_and_pending_adapters(env, tmp_path: Path, ca
     out = capsys.readouterr().out
 
     assert "ics" in out and "implemented (issue 0007)" in out
-    assert "implemented (issue 0019)" in out  # tribe_rest, since this issue
-    assert "NOT implemented (issue 0020)" in out  # jsonld
+    assert "implemented (issue 0019)" in out  # tribe_rest
+    assert "implemented (issue 0020)" in out  # jsonld, since this issue
+    assert "NOT implemented (issue 0021)" in out  # embedded_json
     assert "TODO (issue 0002)" in out  # sequoia-fabrica bookwhen-public
     assert "disabled" in out
 
@@ -458,13 +530,13 @@ def test_dry_run_publishes_every_runnable_source(env, tmp_path: Path, registry):
     # One VEVENT per feed, every one inside the horizon.
     assert all(record.horizon_count == 1 for record in report.ran)
 
-    # Three of the fourteen carry a `location_contains` filter that the
+    # Three of the sixteen carry a `location_contains` filter that the
     # fixture's Oakland address does not match, so they legitimately keep
     # nothing. Filters drop events silently — the point of asserting on the
-    # count rather than on 14 is that the drop shows up here if it changes.
+    # count rather than on 16 is that the drop shows up here if it changes.
     filtered_out = sum(record.filtered_out_count for record in report.ran)
     assert filtered_out == 3
-    assert report.event_count == EXPECTED_RUNNABLE - filtered_out == 11
+    assert report.event_count == EXPECTED_RUNNABLE - filtered_out == 13
     assert report.exit_code == EXIT_OK
     assert report.published is True
 

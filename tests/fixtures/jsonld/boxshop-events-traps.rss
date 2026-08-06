@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The same seed feed with two links that must never be fetched:
+
+    - one carrying ?format=ical, which boxshopsf.org/robots.txt disallows for
+      every agent (as it does ?format=json). The fetch layer would block it, but
+      the adapter must not build the request in the first place.
+    - one pointing at eventbrite.com. Following it would turn a two-step read of
+      one registered source into a crawl, and "fetch only the URLs in
+      sources.yaml" would stop meaning anything.
+-->
+<rss version="2.0">
+  <channel>
+    <title>Events — Box Shop San Francisco</title>
+    <link>https://boxshopsf.org/events</link>
+    <item>
+      <title>Mutant Zoo: Feathers and Fur!</title>
+      <link>https://boxshopsf.org/events/flg-heavy-pettng-zoo-benefit</link>
+      <pubDate>Mon, 29 Jun 2026 19:04:11 +0000</pubDate>
+    </item>
+    <item>
+      <title>Mutant Zoo (calendar file)</title>
+      <link>https://boxshopsf.org/events/flg-heavy-pettng-zoo-benefit?format=ical</link>
+      <pubDate>Mon, 29 Jun 2026 19:04:11 +0000</pubDate>
+    </item>
+    <item>
+      <title>Tickets on Eventbrite</title>
+      <link>https://www.eventbrite.com/e/heavy-petting-zoo-tickets-1234567890</link>
+      <pubDate>Mon, 29 Jun 2026 19:04:11 +0000</pubDate>
+    </item>
+  </channel>
+</rss>

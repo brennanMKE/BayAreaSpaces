@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<!--
+  An Eventbrite organizer page. It carries NO application/ld+json block at all:
+  Eventbrite moved organizer profiles to Next.js and the events now live in
+  <script id="__NEXT_DATA__">, which is issue 0023's `nextdata` adapter.
+
+  Humanmade's source was registered here as `jsonld` and would have returned
+  empty forever after the move. "A wrong adapter is as silent as a wrong URL" —
+  so a page with no ld+json is a reported failure, not zero events.
+
+  Individual Eventbrite *event* pages do still emit JSON-LD. Only the organizer
+  pages lost it.
+-->
+<html lang="en">
+<head>
+  <title>Humanmade Events | Eventbrite</title>
+  <script id="__NEXT_DATA__" type="application/json">
+  {"props": {"pageProps": {"organizer": {"name": "Humanmade"}, "upcomingEvents": [], "upcomingEventsTotal": 0}}}
+  </script>
+</head>
+<body></body>
+</html>

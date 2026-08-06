@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<!--
+  Trimmed copy of https://www.acemakerspace.org/calendar/ as surveyed 2026-08-05.
+  The live page carries 12 schema.org/Event objects in one ld+json block; three
+  are kept here, and the WebSite block that sits in front of them is kept too —
+  it is the reason "collect every block, not just the first" is a requirement
+  rather than a preference. Dates are verbatim, including the -07:00 offsets.
+-->
+<html lang="en">
+<head>
+  <title>Calendar &#8211; Ace Makerspace</title>
+  <meta name="tec-api-version" content="v1">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "Ace Makerspace",
+    "url": "https://www.acemakerspace.org/"
+  }
+  </script>
+
+  <script type="application/ld+json">
+  [
+    {
+      "@context": "https://schema.org",
+      "@type": "Event",
+      "@id": "https://www.acemakerspace.org/event/laser-cutter-basics-2026-08-06/",
+      "name": "Laser Cutter Basics &amp; Safety",
+      "description": "Learn to run the laser cutter safely.",
+      "url": "https://www.acemakerspace.org/event/laser-cutter-basics-2026-08-06/",
+      "startDate": "2026-08-06T18:00:00-07:00",
+      "endDate": "2026-08-06T21:00:00-07:00",
+      "eventStatus": "https://schema.org/EventScheduled",
+      "keywords": ["Laser", "Workshop"],
+      "organizer": { "@type": "Organization", "name": "Laser Team" },
+      "location": {
+        "@type": "Place",
+        "name": "Ace Makerspace Suite 214",
+        "address": {
+          "@type": "PostalAddress",
+          "streetAddress": "6050 Lowell Street, Suite #214",
+          "addressLocality": "Oakland",
+          "addressRegion": "CA",
+          "postalCode": "94608"
+        }
+      },
+      "offers": {
+        "@type": "Offer",
+        "price": "20.00",
+        "priceCurrency": "USD",
+        "url": "https://www.acemakerspace.org/event/laser-cutter-basics-2026-08-06/"
+      }
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "Event",
+      "@id": "https://www.acemakerspace.org/event/textiles-open-studio-2026-08-07/",
+      "name": "Textiles Open Studio",
+      "url": "https://www.acemakerspace.org/event/textiles-open-studio-2026-08-07/",
+      "startDate": "2026-08-07T18:00:00-0700",
+      "endDate": "2026-08-07T21:00:00-0700",
+      "location": { "@type": "Place", "name": "Ace Makerspace Suite 220" },
+      "offers": { "@type": "Offer", "price": "sliding scale $10-30", "priceCurrency": "USD" }
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "Event",
+      "@id": "https://www.acemakerspace.org/event/annual-open-house-2027/",
+      "name": "Annual Open House",
+      "url": "https://www.acemakerspace.org/event/annual-open-house-2027/",
+      "startDate": "2027-06-12",
+      "endDate": "2027-06-13",
+      "location": { "@type": "Place", "name": "Ace Makerspace" }
+    }
+  ]
+  </script>
+</head>
+<body>
+  <h1>Calendar</h1>
+</body>
+</html>

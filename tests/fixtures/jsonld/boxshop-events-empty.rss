@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The events collection with nothing upcoming. The Box Shop runs 8-12 public
+  events a year and carries `allow_zero` in sources.yaml, so this is the normal
+  state for long stretches — legitimately empty, not a parse failure.
+-->
+<rss version="2.0">
+  <channel>
+    <title>Events — Box Shop San Francisco</title>
+    <link>https://boxshopsf.org/events</link>
+    <description>Where San Francisco builds big art.</description>
+  </channel>
+</rss>

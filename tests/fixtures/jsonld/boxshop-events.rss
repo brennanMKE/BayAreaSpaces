@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  https://boxshopsf.org/events?format=rss as surveyed 2026-08-05, with a second
+  item added so the seed walk has more than one link to follow.
+
+  NOTE THE DATES. <pubDate> is when the post was published, not when the event
+  happens: the Mutant Zoo item was posted 2026-06-29 and the event is on
+  2026-08-08. An adapter that read a date out of this feed would publish a
+  calendar of announcement dates. That is the entire reason for the two-step
+  flow — the per-event page is where startDate lives.
+-->
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Events — Box Shop San Francisco</title>
+    <link>https://boxshopsf.org/events</link>
+    <description>Where San Francisco builds big art.</description>
+    <item>
+      <title>Mutant Zoo: Feathers and Fur!</title>
+      <link>https://boxshopsf.org/events/flg-heavy-pettng-zoo-benefit</link>
+      <guid isPermaLink="false">6841b3f0e1a2c30001a1b2c3</guid>
+      <pubDate>Mon, 29 Jun 2026 19:04:11 +0000</pubDate>
+      <description>A benefit for Flaming Lotus Girls and Heavy Petting Zoo.</description>
+    </item>
+    <item>
+      <title>Open Studios Preview</title>
+      <link>https://boxshopsf.org/events/open-studios-preview</link>
+      <guid isPermaLink="false">6841b3f0e1a2c30001a1b2c4</guid>
+      <pubDate>Tue, 30 Jun 2026 17:00:00 +0000</pubDate>
+      <description>Meet the artists before the doors open.</description>
+    </item>
+  </channel>
+</rss>

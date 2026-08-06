@@ -34,11 +34,11 @@ way to be exercised.
 Six decisions worth stating
 ---------------------------
 
-**Unimplemented adapters skip, they do not crash.** Three of the ten adapter
+**Unimplemented adapters skip, they do not crash.** Four of the ten adapter
 names in ``sources.yaml`` are implemented today (``ics``, ``gcal_ics``,
-``tribe_rest``); the other seven are issues 0020-0025 and 0028. A registry entry naming one of those is
-reported as skipped with the issue number, so a run today produces the Tier A
-calendar rather than a traceback.
+``tribe_rest``, ``jsonld``); the other six are issues 0021-0025 and 0028. A
+registry entry naming one of those is reported as skipped with the issue number,
+so a run today produces the Tier A calendar rather than a traceback.
 
 **The model is never load-bearing.** If LM Studio is not answering on
 ``localhost:1234`` the model stages are skipped and Tier A/B is emitted anyway.
@@ -93,6 +93,7 @@ import httpx
 from pipeline import __version__
 from pipeline.adapters.gcal_ics import parse_gcal_ics
 from pipeline.adapters.ics import IcsParse, parse_ics
+from pipeline.adapters.jsonld import parse_jsonld
 from pipeline.adapters.tribe_rest import parse_tribe_rest
 from pipeline.carry_forward import CarryForward, apply_carry_forward
 from pipeline.config import (
@@ -254,13 +255,21 @@ class AdapterEntry:
     #: skip message and a provenance question have the same answer.
     issue: str
     parse: ParseFn | None = None
-    #: True when the adapter needs the ``Fetcher`` to walk further pages of the
-    #: same source. ``tribe_rest`` (issue 0019) follows the response's own
-    #: ``next_rest_url``: Ace's 92 events arrive 50 at a time, and page 1 alone
-    #: is a healthy-looking 54% of the calendar. :func:`process_source` hands
-    #: those adapters the fetcher and the ``SourceRef``, so the extra requests
-    #: stay inside the same rate limiter, the same ``robots.txt`` decision and
-    #: the same ``raw/`` archive as page 1.
+    #: True when the adapter needs the ``Fetcher`` to make further requests for
+    #: the same source. Two shapes use it, and they are not the same shape:
+    #:
+    #: - ``tribe_rest`` (issue 0019) follows the response's own
+    #:   ``next_rest_url``: Ace's 92 events arrive 50 at a time, and page 1
+    #:   alone is a healthy-looking 54% of the calendar.
+    #: - ``jsonld`` (issue 0020) follows a **seed list**: The Box Shop's
+    #:   ``/events?format=rss`` carries no event date at all, only ``pubDate``,
+    #:   so each item's ``/events/<slug>`` page has to be read for the real
+    #:   ``startDate``.
+    #:
+    #: :func:`process_source` hands those adapters the fetcher and the
+    #: ``SourceRef``, so every extra request stays inside the same rate limiter,
+    #: the same ``robots.txt`` decision and the same ``raw/`` archive as the
+    #: first one.
     paginates: bool = False
 
     @property
@@ -275,14 +284,14 @@ class AdapterEntry:
 
 
 #: The dispatch table. ``sources.yaml`` is the only place adapters are *named*;
-#: this is the only place they are *resolved*. Eight of the ten are still
+#: this is the only place they are *resolved*. Six of the ten are still
 #: pending, and a registry entry naming one is skipped with its issue number
 #: rather than crashing the run.
 ADAPTERS: dict[str, AdapterEntry] = {
     "ics": AdapterEntry("ics", "0007", parse_ics),
     "gcal_ics": AdapterEntry("gcal_ics", "0008", parse_gcal_ics),
     "tribe_rest": AdapterEntry("tribe_rest", "0019", parse_tribe_rest, paginates=True),
-    "jsonld": AdapterEntry("jsonld", "0020"),
+    "jsonld": AdapterEntry("jsonld", "0020", parse_jsonld, paginates=True),
     "embedded_json": AdapterEntry("embedded_json", "0021"),
     "json": AdapterEntry("json", "0022"),
     "nextdata": AdapterEntry("nextdata", "0023"),

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<!--
+  A Crucible product page, as surveyed 2026-08-05. This is the "looks available
+  but is not" case, kept as a fixture so the failure stays visible:
+
+    schema.org/Course with NO startDate, NO offers and NO hasCourseInstance.
+
+  A jsonld source registered against thecrucible.org would return zero events
+  every night, forever, without ever erroring. The adapter must say what it
+  found instead of reporting an empty calendar. The Crucible is registered as
+  `json` against the WooCommerce Store API (issue 0022) for this reason.
+-->
+<html lang="en">
+<head>
+  <title>Beginning Blacksmithing | The Crucible</title>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Course",
+    "name": "Beginning Blacksmithing",
+    "description": "An introduction to the forge.",
+    "url": "https://www.thecrucible.org/classes/blacksmithing/beginning-blacksmithing/",
+    "provider": {"@type": "Organization", "name": "The Crucible"}
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    "name": "Beginning Blacksmithing",
+    "sku": "BB-101"
+  }
+  </script>
+</head>
+<body></body>
+</html>

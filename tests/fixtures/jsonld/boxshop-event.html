@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<!--
+  https://boxshopsf.org/events/flg-heavy-pettng-zoo-benefit, trimmed. Squarespace
+  emits clean schema.org/Event on the *detail* page only; the collection page
+  carries WebSite. startDate/endDate are verbatim, including the -0700 offsets
+  confirmed on 2026-08-05.
+
+  "location" is empty here and is deliberately left empty by the adapter.
+  normalize.py's VenuePolicy owns address_override and applies a majority rule;
+  pasting a house address in here would take that decision away from it.
+-->
+<html lang="en-US">
+<head>
+  <title>Mutant Zoo: Feathers and Fur! &mdash; Box Shop San Francisco</title>
+  <script type="application/ld+json">
+  {
+    "@context": "http://schema.org",
+    "@type": "WebSite",
+    "name": "Box Shop San Francisco",
+    "url": "https://boxshopsf.org"
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "http://schema.org",
+    "@type": "Event",
+    "name": "Mutant Zoo: Feathers and Fur!",
+    "url": "https://boxshopsf.org/events/flg-heavy-pettng-zoo-benefit",
+    "startDate": "2026-08-08T18:00:00-0700",
+    "endDate": "2026-08-08T23:59:00-0700",
+    "description": "A benefit for Flaming Lotus Girls and Heavy Petting Zoo.",
+    "location": {}
+  }
+  </script>
+</head>
+<body></body>
+</html>
