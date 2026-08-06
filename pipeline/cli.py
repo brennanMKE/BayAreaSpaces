@@ -108,6 +108,7 @@ from pipeline.config import (
 )
 from pipeline.dedupe import DedupeResult, dedupe, trust_map
 from pipeline.emit_ics import EmitResult, emit_ics
+from pipeline.emit_rss import RssEmitResult, emit_rss
 from pipeline.fetch import FetchError, FetchResult, Fetcher, Outcome, request_url, source_label
 from pipeline.filters import filter_normalization
 from pipeline.health import HealthVerdict, evaluate_health
@@ -623,6 +624,8 @@ class RunReport:
     dedupe_skipped_reason: str | None = None
     health: HealthDecision = field(default_factory=HealthDecision)
     emit: EmitResult | None = None
+    #: What the RSS emit wrote (issue 0018). ``None`` when nothing published.
+    rss: RssEmitResult | None = None
     exit_code: int = EXIT_OK
 
     #: Where ``health.json`` landed (issue 0017). Written on every run, blocked
@@ -730,6 +733,7 @@ class RunReport:
             "uid_collisions": list(self.uid_collisions),
             "health": self.health.as_dict(),
             "emit": self.emit.summary() if self.emit else None,
+            "rss": self.rss.summary() if self.rss else None,
             "sources": [record.as_dict() for record in self.records],
             "exit_code": self.exit_code,
         }
@@ -1198,6 +1202,20 @@ def run_pipeline(
         report.emit = emit_ics(
             report.events, spaces=registry, out_dir=target, dtstamp=now
         )
+        # Both artifacts or neither. The calendar answers "what is next" and the
+        # feed answers "what was just announced" (issue 0018) — they are two
+        # views of one event set, and publishing one without the other leaves a
+        # subscriber reading a feed that disagrees with the calendar. ``store``
+        # is handed over so pubDate is the *stored* first_seen: a dry run has no
+        # rows and falls back to the run timestamp, which is correct for an
+        # artifact nobody is subscribed to.
+        report.rss = emit_rss(
+            report.events,
+            spaces=registry,
+            store=store,
+            out_dir=target,
+            generated_at=now,
+        )
         report.published = True
 
     report.finished_at = dt.datetime.now(dt.timezone.utc)
@@ -1318,6 +1336,17 @@ def print_run_report(report: RunReport, stream: Any = None) -> None:
         )
     elif report.publish_skipped_reason:
         print(f"emitted: nothing — {report.publish_skipped_reason}", file=out)
+    if report.rss is not None:
+        over_cap = (
+            f" ({report.rss.dropped_over_cap} over the cap)"
+            if report.rss.dropped_over_cap
+            else ""
+        )
+        print(
+            f"feed:    {report.rss.item_count} items{over_cap} "
+            f"-> {report.rss.feed_path}",
+            file=out,
+        )
     if report.health_json_path is not None:
         print(f"health:  wrote {report.health_json_path}", file=out)
     elif report.health_json_error:

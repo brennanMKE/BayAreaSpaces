@@ -368,7 +368,11 @@ def test_dry_run_writes_staging_and_leaves_out_alone(env, tmp_path: Path, capsys
     assert code == EXIT_OK
     assert (staging / "calendar.ics").is_file()
     assert (staging / "calendar.ics").read_bytes().startswith(b"BEGIN:VCALENDAR")
+    # Both artifacts or neither, since issue 0018. See tests/test_emit_rss.py.
+    assert (staging / "feed.xml").is_file()
+    assert (staging / "feed.xml").read_bytes().startswith(b"<?xml")
     assert not (out_dir / "calendar.ics").exists()
+    assert not (out_dir / "feed.xml").exists()
     assert not (out_dir / "spaces").exists()
 
 
