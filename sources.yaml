@@ -27,7 +27,12 @@
 #                  is failed as a truncated catalog.
 #   rss            RSS/Atom. Only an event source when items carry a real start
 #                  date; most do not. Otherwise change-detection only.
-#   bookwhen_html  server-rendered Bookwhen agenda table (deterministic, no browser)
+#   bookwhen_html  server-rendered Bookwhen agenda table (deterministic, no
+#                  browser, no model). Rows are <tr data-hook="agenda_list_item">
+#                  and each carries data-event="ev-{entryid}-{YYYYMMDDHHMMSS}",
+#                  the exact local start; the title is the row's <button>. Needs
+#                  no configuration. Reusable for any Bookwhen-hosted space, and
+#                  a fallback: a real Bookwhen ICS feed supersedes it.
 #   llm_html       last resort: clean HTML -> local model -> JSON
 #
 # trust: dedupe tie-breaking. Higher wins. A space's own site always outranks

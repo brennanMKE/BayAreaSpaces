@@ -34,10 +34,10 @@ way to be exercised.
 Six decisions worth stating
 ---------------------------
 
-**Unimplemented adapters skip, they do not crash.** Seven of the ten adapter
+**Unimplemented adapters skip, they do not crash.** Eight of the ten adapter
 names in ``sources.yaml`` are implemented today (``ics``, ``gcal_ics``,
-``tribe_rest``, ``jsonld``, ``embedded_json``, ``json``, ``nextdata``); the
-other three are issues 0024, 0025 and 0028. A
+``tribe_rest``, ``jsonld``, ``embedded_json``, ``json``, ``nextdata``,
+``bookwhen_html``); the other two are issues 0025 and 0028. A
 registry entry naming one of those is reported as skipped with the issue number,
 so a run today produces the Tier A calendar rather than a traceback.
 
@@ -92,6 +92,7 @@ from typing import Any
 import httpx
 
 from pipeline import __version__
+from pipeline.adapters.bookwhen_html import parse_bookwhen_html
 from pipeline.adapters.embedded_json import parse_embedded_json
 from pipeline.adapters.gcal_ics import parse_gcal_ics
 from pipeline.adapters.ics import IcsParse, parse_ics
@@ -300,7 +301,7 @@ class AdapterEntry:
 
 
 #: The dispatch table. ``sources.yaml`` is the only place adapters are *named*;
-#: this is the only place they are *resolved*. Five of the ten are still
+#: this is the only place they are *resolved*. Two of the ten are still
 #: pending, and a registry entry naming one is skipped with its issue number
 #: rather than crashing the run.
 ADAPTERS: dict[str, AdapterEntry] = {
@@ -319,7 +320,13 @@ ADAPTERS: dict[str, AdapterEntry] = {
     # (`__NEXT_DATA__`) and the payload paths are what make the adapter
     # Eventbrite's, so it reads one page and needs nothing from the registry.
     "nextdata": AdapterEntry("nextdata", "0023", parse_nextdata),
-    "bookwhen_html": AdapterEntry("bookwhen_html", "0024"),
+    # One request, no registry configuration: the row hook and the
+    # `data-event` format are what make this adapter Bookwhen's. Pagination
+    # exists (`fetch_bookwhen_html(paginate=True)`) and is deliberately not
+    # wired in here — the default page already covers the horizon for the one
+    # registered consumer, and the "Show more" endpoint answers with executable
+    # JavaScript rather than JSON.
+    "bookwhen_html": AdapterEntry("bookwhen_html", "0024", parse_bookwhen_html),
     "rss": AdapterEntry("rss", "0025"),
     "llm_html": AdapterEntry("llm_html", "0028"),
 }

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Sequoia Fabrica</title>
+</head>
+<body class="bookwhen">
+<!-- A Bookwhen page whose agenda no longer contains rows: the markup drifted,
+     or the list moved behind client-side rendering (note the empty <tbody> and
+     the mount point below it).
+
+     It is recognizably Bookwhen - the data-options calendar block is right
+     there - so this is NOT the "unrelated page" failure. It is also not an
+     empty calendar: no empty-state marker was rendered. Reported as NO_ROWS,
+     which is the repair "go and look at the markup", not "the space has
+     nothing on". -->
+<div id="header" data-hook="page_header"><h1>Sequoia Fabrica</h1></div>
+
+<div id="calendar"
+     data-hook="calendar_container"
+     data-options='{"calendar":"lcqebfpp6u7h","locale":"en","tz":"America/Los_Angeles","view":"agenda"}'>
+  <table class="agenda" data-hook="agenda_list">
+    <thead data-hook="agenda_list_header">
+      <tr><th>Date</th><th>Time</th><th>Event</th><th></th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  <div id="agenda-mount" data-hook="agenda_list_mount"></div>
+</div>
+
+<div id="footer" data-hook="page_footer"><p>Powered by Bookwhen</p></div>
+</body>
+</html>

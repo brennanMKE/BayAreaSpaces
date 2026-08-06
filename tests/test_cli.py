@@ -11,10 +11,10 @@ open a socket to ``localhost:1234``.
 
 What is being defended:
 
-**A run today produces a calendar.** Four of the ten adapter names in
-``sources.yaml`` are still issues 0023-0025 and 0028. Meeting one must skip with
-its issue number, not end the run — otherwise Phase 1 delivers nothing until
-Phase 2 is finished.
+**A run today produces a calendar.** Two of the ten adapter names in
+``sources.yaml`` are still issues 0025 and 0028. Meeting one must skip with its
+issue number, not end the run — otherwise Phase 1 delivers nothing until Phase 2
+is finished.
 
 **Nothing publishes by accident.** ``--dry-run`` writes to ``out/.staging/`` and
 ``out/calendar.ics`` is not touched. Neither is a single-space run allowed to
@@ -68,13 +68,14 @@ EXPECTED_ENABLED = 26
 EXPECTED_DISABLED = 4
 EXPECTED_TODO = 1
 #: enabled, not TODO, and naming an adapter that exists today (ics, gcal_ics,
-#: tribe_rest, jsonld, embedded_json, json, nextdata). Issue 0019 added Ace's
-#: REST feed; issue 0020 added Ace's JSON-LD calendar page and The Box Shop's
-#: two-step Squarespace source; issue 0021 added The Crucible's course-catalog
-#: blob; issue 0022 added The Crucible's WooCommerce Store API and Maker
-#: Nexus's Amilia cache; issue 0023 added the two enabled Eventbrite organizer
-#: pages (The Crucible's and Humanmade's).
-EXPECTED_RUNNABLE = 21
+#: tribe_rest, jsonld, embedded_json, json, nextdata, bookwhen_html). Issue
+#: 0019 added Ace's REST feed; issue 0020 added Ace's JSON-LD calendar page and
+#: The Box Shop's two-step Squarespace source; issue 0021 added The Crucible's
+#: course-catalog blob; issue 0022 added The Crucible's WooCommerce Store API
+#: and Maker Nexus's Amilia cache; issue 0023 added the two enabled Eventbrite
+#: organizer pages (The Crucible's and Humanmade's); issue 0024 added Sequoia
+#: Fabrica's Bookwhen agenda, which is that space's primary public calendar.
+EXPECTED_RUNNABLE = 22
 
 ICS_BODY = b"""BEGIN:VCALENDAR\r
 VERSION:2.0\r
@@ -358,6 +359,29 @@ def nextdata_body(url: httpx.URL) -> bytes:
     ).encode("utf-8")
 
 
+def bookwhen_body(url: httpx.URL) -> bytes:
+    """A Bookwhen public agenda — the ``bookwhen_html`` counterpart (issue 0024).
+
+    One ``<tr data-hook="agenda_list_item">`` whose
+    ``data-event="ev-{entryid}-{YYYYMMDDHHMMSS}"`` carries the exact local start,
+    with the title in the row's ``<button>``. Same shape as :func:`feed_body`:
+    one event, inside the horizon, with a title far enough from the others that
+    dedupe leaves it alone.
+    """
+    digest = hashlib.sha1(str(url).encode()).hexdigest()[:8]
+    return (
+        "<!DOCTYPE html><html><head><title>Bookwhen</title></head><body>"
+        '<div data-hook="calendar_container" '
+        "data-options='{\"calendar\":\"lcqebfpp6u7h\",\"view\":\"agenda\"}'>"
+        '<table data-hook="agenda_list"><tbody>'
+        f'<tr data-hook="agenda_list_item" data-event="ev-{digest}-20260820180000">'
+        '<td class="duration">6:00 PM &ndash; 8:00 PM PDT</td>'
+        f'<td><button type="button">Embroidery Social {digest}</button></td>'
+        f'<td><a href="/sequoiafabrica/e/ev-{digest}-20260820180000">Book</a></td>'
+        "</tr></tbody></table></div></body></html>"
+    ).encode("utf-8")
+
+
 def calendar_transport(body: bytes | None = None) -> httpx.MockTransport:
     """``robots.txt`` 404, TEC REST and the two ``json`` documents as JSON,
     JSON-LD pages as HTML, rest as ICS.
@@ -418,6 +442,14 @@ def calendar_transport(body: bytes | None = None) -> httpx.MockTransport:
             return httpx.Response(
                 200,
                 content=nextdata_body(url),
+                headers={"Content-Type": "text/html; charset=utf-8"},
+            )
+        if body is None and url.host == "bookwhen.com":
+            # Sequoia Fabrica's public agenda. Registered as bookwhen_html since
+            # issue 0024; before it, this source skipped.
+            return httpx.Response(
+                200,
+                content=bookwhen_body(url),
                 headers={"Content-Type": "text/html; charset=utf-8"},
             )
         if body is None and (url.path == "/calendar/" or url.path.startswith("/events/")):
@@ -544,7 +576,7 @@ def test_every_registry_adapter_has_a_dispatch_entry():
     assert set(ADAPTERS) == set(KNOWN_ADAPTERS)
 
 
-def test_seven_of_the_ten_adapters_are_implemented_today():
+def test_eight_of_the_ten_adapters_are_implemented_today():
     assert implemented_adapters() == {
         "ics",
         "gcal_ics",
@@ -553,6 +585,7 @@ def test_seven_of_the_ten_adapters_are_implemented_today():
         "embedded_json",
         "json",
         "nextdata",
+        "bookwhen_html",
     }
 
 
@@ -592,7 +625,6 @@ def test_three_adapters_need_the_fetcher_for_follow_up_requests():
 
 def test_pending_adapters_name_the_issue_that_implements_them():
     expected = {
-        "bookwhen_html": "0024",
         "rss": "0025",
         "llm_html": "0028",
     }
@@ -641,8 +673,9 @@ def test_validate_names_implemented_and_pending_adapters(env, tmp_path: Path, ca
     assert "implemented (issue 0020)" in out  # jsonld
     assert "implemented (issue 0021)" in out  # embedded_json
     assert "implemented (issue 0022)" in out  # json
-    assert "implemented (issue 0023)" in out  # nextdata, since this issue
-    assert "NOT implemented (issue 0024)" in out  # bookwhen_html
+    assert "implemented (issue 0023)" in out  # nextdata
+    assert "implemented (issue 0024)" in out  # bookwhen_html, since this issue
+    assert "NOT implemented (issue 0025)" in out  # rss
     assert "TODO (issue 0002)" in out  # sequoia-fabrica bookwhen-public
     assert "disabled" in out
 
@@ -732,13 +765,13 @@ def test_dry_run_publishes_every_runnable_source(env, tmp_path: Path, registry):
     # One VEVENT per feed, every one inside the horizon.
     assert all(record.horizon_count == 1 for record in report.ran)
 
-    # Three of the nineteen carry a `location_contains` filter that the
+    # Three of the twenty-two carry a `location_contains` filter that the
     # fixture's Oakland address does not match, so they legitimately keep
     # nothing. Filters drop events silently — the point of asserting on the
-    # count rather than on 19 is that the drop shows up here if it changes.
+    # count rather than on 22 is that the drop shows up here if it changes.
     filtered_out = sum(record.filtered_out_count for record in report.ran)
     assert filtered_out == 3
-    assert report.event_count == EXPECTED_RUNNABLE - filtered_out == 18
+    assert report.event_count == EXPECTED_RUNNABLE - filtered_out == 19
     assert report.exit_code == EXIT_OK
     assert report.published is True
 

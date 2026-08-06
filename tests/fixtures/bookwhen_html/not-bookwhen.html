@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Sequoia Fabrica</title>
+</head>
+<body>
+<!-- A 200 with an unrelated HTML page in it.
+
+     This is the shape of the failure the adapter has to refuse: the request
+     succeeded, the content type is text/html, the body is well-formed, and it
+     is not an agenda. A parser that answered [] here would publish "Sequoia
+     Fabrica has no classes" every night without anything erroring.
+
+     Real candidates for landing here: a Bookwhen maintenance or login page, an
+     upstream CDN error page, or a redirect chain that ends somewhere new. The
+     nearest live example is events.sequoiafabrica.org, whose every path -
+     /events.ics, /calendar.ics, /ical, /feed, /feed.xml, /rss, /index.xml,
+     /sitemap.xml, /robots.txt - answers 200 with a redirect to Bookwhen. Today
+     that redirect lands on the real agenda; the day it lands anywhere else,
+     this is what the adapter sees. -->
+<div id="page">
+  <h1>Sequoia Fabrica</h1>
+  <p>A community makerspace in Potrero Hill, San Francisco.</p>
+  <p>Our classes and socials are booked through
+     <a href="https://bookwhen.com/sequoiafabrica">Bookwhen</a>.</p>
+  <ul>
+    <li><a href="/docs/about">About</a></li>
+    <li><a href="/docs/membership">Membership</a></li>
+    <li><a href="/docs/contact">Contact</a></li>
+  </ul>
+</div>
+</body>
+</html>

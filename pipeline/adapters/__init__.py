@@ -25,7 +25,11 @@ Registered adapters and the issue that implements each:
                  thin ``embedded_json`` field map plus the three-field start
                  assembly Eventbrite needs — issue 0023. Individual Eventbrite
                  *event* pages still emit JSON-LD and stay with ``jsonld``.
-``bookwhen_html``server-rendered Bookwhen agenda table — issue 0024
+``bookwhen_html``server-rendered Bookwhen agenda table — issue 0024.
+                 Deterministic because each ``<tr data-hook="agenda_list_item">``
+                 carries ``data-event="ev-{entryid}-{YYYYMMDDHHMMSS}"``, an
+                 exact local start. A **fallback**: issue 0002 is chasing the
+                 Bookwhen ICS token, and that feed supersedes this.
 ``rss``          RSS/Atom; only an event source when items carry a real start
                  date, which most do not — issue 0025
 ``llm_html``     last resort: cleaned HTML -> local model -> validated JSON —

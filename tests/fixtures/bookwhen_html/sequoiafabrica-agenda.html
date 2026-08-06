@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Sequoia Fabrica</title>
+<!-- Hand-authored fixture, structurally faithful to bookwhen.com/sequoiafabrica
+     as fetched 2026-08-05 (200, text/html; charset=utf-8, 67,502 B).
+
+     Reproduced exactly: the 20 <tr data-hook="agenda_list_item"> rows, their
+     data-event="ev-{entryid}-{YYYYMMDDHHMMSS}" attributes, the <button> title,
+     the td.duration display string, the data-options blob carrying the account
+     id, and the fact that the page carries NO JSON-LD and no calendar-feed link
+     of any kind: no alternate link, no subscribe URL, no iCal route. That
+     absence is deliberate and is asserted by the tests, so keep this file free
+     of those strings even in comments. It is also what proves the ICS token
+     issue 0002 is chasing can only come from the Bookwhen admin.
+
+     Trimmed: Bookwhen's stylesheets, scripts and booking chrome. Titles and the
+     2026-08-13 -> 2027-01-05 span are the ones the survey recorded; the exact
+     clock times per row are representative. -->
+<meta name="description" content="Sequoia Fabrica classes and socials" />
+</head>
+<body class="bookwhen">
+
+<div id="header" data-hook="page_header">
+  <h1>Sequoia Fabrica</h1>
+  <p>1736 18th St, San Francisco, CA 94107 &middot; info@sequoiafabrica.org</p>
+</div>
+
+<!-- The account id the calendar_items endpoint wants. NOT the same string as
+     the /sequoiafabrica path segment. -->
+<div id="calendar"
+     data-hook="calendar_container"
+     data-options='{"calendar":"lcqebfpp6u7h","locale":"en","tz":"America/Los_Angeles","view":"agenda"}'>
+
+<table class="agenda" data-hook="agenda_list">
+  <thead data-hook="agenda_list_header">
+    <tr><th>Date</th><th>Time</th><th>Event</th><th></th></tr>
+  </thead>
+  <tbody>
+
+    <tr class="agenda__row" data-hook="agenda_list_item" data-event="ev-sfhandemb1-20260813180000">
+      <td class="date">Thu 13 Aug</td>
+      <td class="duration">6:00 PM &ndash; 8:00 PM PDT</td>
+      <td class="title"><button type="button" class="agenda__title">Hand Embroidery Social</button></td>
+      <td class="book"><a href="/sequoiafabrica/e/ev-sfhandemb1-20260813180000">Book</a></td>
+    </tr>
+
+    <tr class="agenda__row" data-hook="agenda_list_item" data-event="ev-sfmao01-20260818183000">
+      <td class="date">Tue 18 Aug</td>
+      <td class="duration">6:30 PM &ndash; 7:30 PM PDT</td>
+      <td class="title"><button type="button" class="agenda__title">Member Applicant Orientation</button></td>
+      <td class="book"><a href="/sequoiafabrica/e/ev-sfmao01-20260818183000">Book</a></td>
+    </tr>
+
+    <tr class="agenda__row" data-hook="agenda_list_item" data-event="ev-sfcrochet1-20260825180000">
+      <td class="date">Tue 25 Aug</td>
+      <td class="duration">6:00 PM &ndash; 8:00 PM PDT</td>
+      <td class="title"><button type="button" class="agenda__title">Crochet &amp; Knitting Social</button></td>
+      <td class="book"><a href="/sequoiafabrica/e/ev-sfcrochet1-20260825180000">Book</a></td>
+    </tr>
+
+    <tr class="agenda__row" data-hook="agenda_list_item" data-event="ev-sfmao02-20260901183000">
+      <td class="date">Tue 01 Sep</td>
+      <td class="duration">6:30 PM &ndash; 7:30 PM PDT</td>
+      <td class="title"><button type="button" class="agenda__title">Member Applicant Orientation</button></td>
+      <td class="book"><a href="/sequoiafabrica/e/ev-sfmao02-20260901183000">Book</a></td>
+    </tr>
+
+    <tr class="agenda__row" data-hook="agenda_list_item" data-event="ev-sfupmend1-20260910180000">
+      <td class="date">Thu 10 Sep</td>
+      <td class="duration">6:00 PM &ndash; 8:00 PM PDT</td>
+      <td class="title"><button type="button" class="agenda__title">Upmending (upcycling + mending) Social</button></td>
+      <td class="book"><a href="/sequoiafabrica/e/ev-sfupmend1-20260910180000">Book</a></td>
+    </tr>
+
+    <tr class="agenda__row" data-hook="agenda_list_item" data-event="ev-sfmao03-20260915183000">
+      <td class="date">Tue 15 Sep</td>
+      <td class="duration">6:30 PM &ndash; 7:30 PM PDT</td>
+      <td class="title"><button type="button" class="agenda__title">Member Applicant Orientation</button></td>
+      <td class="book"><a href="/sequoiafabrica/e/ev-sfmao03-20260915183000">Book</a></td>
+    </tr>
+
+    <tr class="agenda__row" data-hook="agenda_list_item" data-event="ev-sfblockprint1-20260922180000">
+      <td class="date">Tue 22 Sep</td>
+      <td class="duration">6:00 PM &ndash; 8:30 PM PDT</td>
+      <td class="title"><button type="button" class="agenda__title">Block Printmaking Social</button></td>
+      <td class="book"><a href="/sequoiafabrica/e/ev-sfblockprint1-20260922180000">Book</a></td>
+    </tr>
+
+    <tr class="agenda__row" data-hook="agenda_list_item" data-event="ev-sfmao04-20261006183000">
+      <td class="date">Tue 06 Oct</td>
+      <td class="duration">6:30 PM &ndash; 7:30 PM PDT</td>
+      <td class="title"><button type="button" class="agenda__title">Member Applicant Orientation</button></td>
+      <td class="book"><a href="/sequoiafabrica/e/ev-sfmao04-20261006183000">Book</a></td>
+    </tr>
+
+    <tr class="agenda__row" data-hook="agenda_list_item" data-event="ev-sfhandemb2-20261008180000">
+      <td class="date">Thu 08 Oct</td>
+      <td class="duration">6:00 PM &ndash; 8:00 PM PDT</td>
+      <td class="title"><button type="button" class="agenda__title">Hand Embroidery Social</button></td>
+      <td class="book"><a href="/sequoiafabrica/e/ev-sfhandemb2-20261008180000">Book</a></td>
+    </tr>
+
+    <tr class="agenda__row" data-hook="agenda_list_item" data-event="ev-sfmao05-20261020183000">
+      <td class="date">Tue 20 Oct</td>
+      <td class="duration">6:30 PM &ndash; 7:30 PM PDT</td>
+      <td class="title"><button type="button" class="agenda__title">Member Applicant Orientation</button></td>
+      <td class="book"><a href="/sequoiafabrica/e/ev-sfmao05-20261020183000">Book</a></td>
+    </tr>
+
+    <tr class="agenda__row" data-hook="agenda_list_item" data-event="ev-sfcrochet2-20261027180000">
+      <td class="date">Tue 27 Oct</td>
+      <td class="duration">6:00 PM &ndash; 8:00 PM PDT</td>
+      <td class="title"><button type="button" class="agenda__title">Crochet &amp; Knitting Social</button></td>
+      <td class="book"><a href="/sequoiafabrica/e/ev-sfcrochet2-20261027180000">Book</a></td>
+    </tr>
+
+    <!-- The last PDT event of the year. Its pair below is the first PST one, and
+         both say 6:00-ish PM to a human. An entry id with a hyphen in it, too:
+         the id is opaque and the 14-digit stamp is anchored to the end. -->
+    <tr class="agenda__row" data-hook="agenda_list_item" data-event="ev-sf-bioyarn-20261029180000">
+      <td class="date">Thu 29 Oct</td>
+      <td class="duration">6:00 PM &ndash; 8:30 PM PDT</td>
+      <td class="title"><button type="button" class="agenda__title">Let's make BioYarn!</button></td>
+      <td class="book"><a href="/sequoiafabrica/e/ev-sf-bioyarn-20261029180000">Book</a></td>
+    </tr>
+
+    <!-- DST ended 2026-11-01. Same wall clock, different offset. -->
+    <tr class="agenda__row" data-hook="agenda_list_item" data-event="ev-sfmao06-20261103183000">
+      <td class="date">Tue 03 Nov</td>
+      <td class="duration">6:30 PM &ndash; 7:30 PM PST</td>
+      <td class="title"><button type="button" class="agenda__title">Member Applicant Orientation</button></td>
+      <td class="book"><a href="/sequoiafabrica/e/ev-sfmao06-20261103183000">Book</a></td>
+    </tr>
+
+    <tr class="agenda__row" data-hook="agenda_list_item" data-event="ev-sfblockprint2-20261110180000">
+      <td class="date">Tue 10 Nov</td>
+      <td class="duration">6:00 PM &ndash; 8:30 PM PST</td>
+      <td class="title"><button type="button" class="agenda__title">Block Printmaking Social</button></td>
+      <td class="book"><a href="/sequoiafabrica/e/ev-sfblockprint2-20261110180000">Book</a></td>
+    </tr>
+
+    <tr class="agenda__row" data-hook="agenda_list_item" data-event="ev-sfmao07-20261117183000">
+      <td class="date">Tue 17 Nov</td>
+      <td class="duration">6:30 PM &ndash; 7:30 PM PST</td>
+      <td class="title"><button type="button" class="agenda__title">Member Applicant Orientation</button></td>
+      <td class="book"><a href="/sequoiafabrica/e/ev-sfmao07-20261117183000">Book</a></td>
+    </tr>
+
+    <tr class="agenda__row" data-hook="agenda_list_item" data-event="ev-sfmao08-20261201183000">
+      <td class="date">Tue 01 Dec</td>
+      <td class="duration">6:30 PM &ndash; 7:30 PM PST</td>
+      <td class="title"><button type="button" class="agenda__title">Member Applicant Orientation</button></td>
+      <td class="book"><a href="/sequoiafabrica/e/ev-sfmao08-20261201183000">Book</a></td>
+    </tr>
+
+    <!-- Everything below here is past a 120-day horizon opened on 2026-08-05
+         (window end 2026-12-03) and is clipped. The rows are still counted as
+         rows: raw_count says 20, the gates count the 16 that survive. -->
+
+    <tr class="agenda__row" data-hook="agenda_list_item" data-event="ev-sfcrochet3-20261208180000">
+      <td class="date">Tue 08 Dec</td>
+      <td class="duration">6:00 PM &ndash; 8:00 PM PST</td>
+      <td class="title"><button type="button" class="agenda__title">Crochet &amp; Knitting Social</button></td>
+      <td class="book"><a href="/sequoiafabrica/e/ev-sfcrochet3-20261208180000">Book</a></td>
+    </tr>
+
+    <tr class="agenda__row" data-hook="agenda_list_item" data-event="ev-sfmao09-20261215183000">
+      <td class="date">Tue 15 Dec</td>
+      <td class="duration">6:30 PM &ndash; 7:30 PM PST</td>
+      <td class="title"><button type="button" class="agenda__title">Member Applicant Orientation</button></td>
+      <td class="book"><a href="/sequoiafabrica/e/ev-sfmao09-20261215183000">Book</a></td>
+    </tr>
+
+    <tr class="agenda__row" data-hook="agenda_list_item" data-event="ev-sfmao10-20261222183000">
+      <td class="date">Tue 22 Dec</td>
+      <td class="duration">6:30 PM &ndash; 7:30 PM PST</td>
+      <td class="title"><button type="button" class="agenda__title">Member Applicant Orientation</button></td>
+      <td class="book"><a href="/sequoiafabrica/e/ev-sfmao10-20261222183000">Book</a></td>
+    </tr>
+
+    <tr class="agenda__row" data-hook="agenda_list_item" data-event="ev-sfmao11-20270105183000">
+      <td class="date">Tue 05 Jan</td>
+      <td class="duration">6:30 PM &ndash; 7:30 PM PST</td>
+      <td class="title"><button type="button" class="agenda__title">Member Applicant Orientation</button></td>
+      <td class="book"><a href="/sequoiafabrica/e/ev-sfmao11-20270105183000">Book</a></td>
+    </tr>
+
+  </tbody>
+</table>
+
+<div class="agenda__more" data-hook="agenda_list_more">
+  <button type="button" data-offset="20" data-limit="50">Show more&hellip;</button>
+</div>
+
+</div>
+
+<div id="footer" data-hook="page_footer">
+  <p>+14159350478 &middot; info@sequoiafabrica.org</p>
+  <p>Powered by Bookwhen</p>
+</div>
+
+</body>
+</html>
