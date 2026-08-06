@@ -137,6 +137,33 @@ The finished event set is pushed to Postgres on EC2. Until the connection method
 ownership are settled with the website project, the pipeline emits to `out/` and that is the
 interface. See [CLAUDE.md](CLAUDE.md) for the open questions.
 
+## About this bot
+
+If you followed a link here from your server logs — hello. This page is what
+`bayarea-maker-calendar/0.1` points at in its User-Agent.
+
+**What it is.** A nightly job that collects publicly-posted events from Bay Area
+makerspaces into one calendar, so people can find what's happening across the whole scene
+in one place. It links every event back to the space that runs it.
+
+**What it fetches.** Only the specific feed URLs listed in
+[`sources.yaml`](sources.yaml) — an iCal feed, an RSS feed, a public calendar page. It does
+not crawl, does not follow links, and does not walk your sitemap. Per-space detail, including
+exactly which URLs are read, is in [`spaces/`](spaces/).
+
+**How often.** Once a night, around 03:15 Pacific. It sends `If-None-Match` /
+`If-Modified-Since`, so an unchanged feed costs you a 304 and no body. It waits at least 2
+seconds between requests to the same host, longer where your `robots.txt` asks (Ace
+Makerspace's `Crawl-delay: 10` is honored). It reads and obeys `robots.txt`.
+
+**What gets published.** Event title, time, location, a link back to you, and a summary of
+roughly 300 characters — never the full description.
+
+**To opt out, or to change what we read:** open an issue on this repository, or contact
+Brennan Stehling through the profile linked above. Opt-outs are honored immediately and
+without argument — no justification needed. If you would rather we read a different URL, or
+you would like to publish a feed you control, that is very welcome; say so and we will use it.
+
 ## Being a good citizen
 
 These are volunteer nonprofits on shared hosting. The pipeline:
