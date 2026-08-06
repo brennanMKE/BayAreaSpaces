@@ -1,0 +1,7 @@
+{
+  "events": [],
+  "rest_url": "https://www.acemakerspace.org/wp-json/tribe/events/v1/events?start_date=2026-08-05&per_page=50&page=3",
+  "previous_rest_url": "https://www.acemakerspace.org/wp-json/tribe/events/v1/events?start_date=2026-08-05&per_page=50&page=2",
+  "total": 5,
+  "total_pages": 2
+}

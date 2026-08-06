@@ -34,9 +34,9 @@ way to be exercised.
 Six decisions worth stating
 ---------------------------
 
-**Unimplemented adapters skip, they do not crash.** Two of the ten adapter names
-in ``sources.yaml`` are implemented today (``ics``, ``gcal_ics``); the other
-eight are issues 0019-0025 and 0028. A registry entry naming one of those is
+**Unimplemented adapters skip, they do not crash.** Three of the ten adapter
+names in ``sources.yaml`` are implemented today (``ics``, ``gcal_ics``,
+``tribe_rest``); the other seven are issues 0020-0025 and 0028. A registry entry naming one of those is
 reported as skipped with the issue number, so a run today produces the Tier A
 calendar rather than a traceback.
 
@@ -93,6 +93,7 @@ import httpx
 from pipeline import __version__
 from pipeline.adapters.gcal_ics import parse_gcal_ics
 from pipeline.adapters.ics import IcsParse, parse_ics
+from pipeline.adapters.tribe_rest import parse_tribe_rest
 from pipeline.carry_forward import CarryForward, apply_carry_forward
 from pipeline.config import (
     OUT_DIR,
@@ -253,6 +254,14 @@ class AdapterEntry:
     #: skip message and a provenance question have the same answer.
     issue: str
     parse: ParseFn | None = None
+    #: True when the adapter needs the ``Fetcher`` to walk further pages of the
+    #: same source. ``tribe_rest`` (issue 0019) follows the response's own
+    #: ``next_rest_url``: Ace's 92 events arrive 50 at a time, and page 1 alone
+    #: is a healthy-looking 54% of the calendar. :func:`process_source` hands
+    #: those adapters the fetcher and the ``SourceRef``, so the extra requests
+    #: stay inside the same rate limiter, the same ``robots.txt`` decision and
+    #: the same ``raw/`` archive as page 1.
+    paginates: bool = False
 
     @property
     def implemented(self) -> bool:
@@ -272,7 +281,7 @@ class AdapterEntry:
 ADAPTERS: dict[str, AdapterEntry] = {
     "ics": AdapterEntry("ics", "0007", parse_ics),
     "gcal_ics": AdapterEntry("gcal_ics", "0008", parse_gcal_ics),
-    "tribe_rest": AdapterEntry("tribe_rest", "0019"),
+    "tribe_rest": AdapterEntry("tribe_rest", "0019", parse_tribe_rest, paginates=True),
     "jsonld": AdapterEntry("jsonld", "0020"),
     "embedded_json": AdapterEntry("embedded_json", "0021"),
     "json": AdapterEntry("json", "0022"),
@@ -848,8 +857,16 @@ def process_source(
         record.elapsed_seconds = time.perf_counter() - started
         return record, []
 
+    # A paginating adapter is handed the fetcher and the source it came from,
+    # so it can follow the feed's *own* next-page link. Page 2 therefore goes
+    # through the same rate limiter, the same robots decision and the same raw/
+    # archive as page 1 — see AdapterEntry.paginates.
+    extra: dict[str, Any] = (
+        {"fetcher": fetcher, "ref": ref} if entry.paginates else {}
+    )
+
     try:
-        parse = entry.parse(result, horizon_days=horizon_days, now=now)  # type: ignore[misc]
+        parse = entry.parse(result, horizon_days=horizon_days, now=now, **extra)  # type: ignore[misc]
         record.raw_count = parse.vevent_count
         record.horizon_count = parse.event_count
         record.problem = parse.problem.value

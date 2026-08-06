@@ -1,0 +1,161 @@
+{
+  "events": [
+    {
+      "id": 40101,
+      "global_id": "www.acemakerspace.org?id=40101",
+      "status": "publish",
+      "url": "https://www.acemakerspace.org/event/laser-cutter-basics-2026-08-06/",
+      "rest_url": "https://www.acemakerspace.org/wp-json/tribe/events/v1/events/40101",
+      "title": "Laser Cutter Basics &#038; Safety",
+      "description": "<p>Learn to run the big laser without setting anything on fire.</p>",
+      "excerpt": "<p>Learn to run the big laser.</p>",
+      "slug": "laser-cutter-basics-2026-08-06",
+      "image": {
+        "url": "https://www.acemakerspace.org/wp-content/uploads/laser.jpg",
+        "id": 501
+      },
+      "all_day": false,
+      "start_date": "2026-08-06 18:00:00",
+      "end_date": "2026-08-06 21:00:00",
+      "utc_start_date": "2026-08-07 01:00:00",
+      "utc_end_date": "2026-08-07 04:00:00",
+      "timezone": "America/Los_Angeles",
+      "timezone_abbr": "PDT",
+      "cost": "&#036;20.00",
+      "cost_details": {
+        "currency_symbol": "&#036;",
+        "currency_code": "USD",
+        "currency_position": "prefix",
+        "values": ["20.00"]
+      },
+      "website": "",
+      "show_map": true,
+      "featured": false,
+      "is_virtual": false,
+      "ticketed": true,
+      "date_utc": "2026-06-01 17:00:00",
+      "modified_utc": "2026-07-30 22:14:05",
+      "venue": {
+        "id": 900,
+        "venue": "Ace Makerspace Suite 214",
+        "address": "6050 Lowell Street, Suite #214",
+        "city": "Oakland",
+        "province": "CA",
+        "zip": "94608",
+        "country": "United States"
+      },
+      "organizer": [
+        {
+          "id": 800,
+          "organizer": "Laser Team",
+          "name": "Laser Team",
+          "email": "officers@acemakerspace.org"
+        }
+      ],
+      "categories": [
+        {
+          "name": "Laser",
+          "slug": "laser-events",
+          "id": 71
+        },
+        {
+          "name": "Workshop",
+          "slug": "workshop-events",
+          "id": 72
+        }
+      ],
+      "tags": []
+    },
+    {
+      "id": 40102,
+      "global_id": "www.acemakerspace.org?id=40102",
+      "status": "publish",
+      "url": "https://www.acemakerspace.org/event/textiles-open-studio-2026-08-07/",
+      "title": "Textiles Open Studio",
+      "description": "<p>Bring a project. Sliding scale, nobody is turned away.</p>",
+      "all_day": false,
+      "start_date": "2026-08-07 19:00:00",
+      "end_date": "2026-08-07 22:00:00",
+      "utc_start_date": "2026-08-08 02:00:00",
+      "utc_end_date": "2026-08-08 05:00:00",
+      "timezone": "America/Los_Angeles",
+      "timezone_abbr": "PDT",
+      "cost": "sliding scale &#036;10-30",
+      "cost_details": {
+        "currency_symbol": "&#036;",
+        "currency_code": "USD",
+        "currency_position": "prefix",
+        "values": []
+      },
+      "website": "https://www.acemakerspace.org/textiles/",
+      "featured": true,
+      "is_virtual": false,
+      "ticketed": false,
+      "date_utc": "2026-05-11 16:00:00",
+      "modified_utc": "2026-08-01 09:02:11",
+      "venue": {
+        "id": 900,
+        "venue": "Ace Makerspace Suite 214",
+        "address": "6050 Lowell Street, Suite #214",
+        "city": "Oakland",
+        "province": "CA",
+        "zip": "94608",
+        "country": "United States"
+      },
+      "organizer": [
+        {
+          "id": 801,
+          "organizer": "Team Ace",
+          "name": "Team Ace"
+        }
+      ],
+      "categories": [
+        {
+          "name": "Textiles",
+          "slug": "textiles-events",
+          "id": 73
+        }
+      ],
+      "tags": []
+    },
+    {
+      "id": 40103,
+      "global_id": "www.acemakerspace.org?id=40103",
+      "status": "publish",
+      "url": "https://www.acemakerspace.org/event/virtual-new-member-orientation-2026-08-08/",
+      "title": "Virtual New Member Orientation",
+      "description": "<p>Online walkthrough of membership and shop rules.</p>",
+      "all_day": false,
+      "start_date": "2026-08-08 11:00:00",
+      "end_date": "2026-08-08 12:00:00",
+      "utc_start_date": "2026-08-08 18:00:00",
+      "utc_end_date": "2026-08-08 19:00:00",
+      "timezone": "America/Los_Angeles",
+      "timezone_abbr": "PDT",
+      "cost": "free for members",
+      "website": "",
+      "featured": false,
+      "is_virtual": true,
+      "ticketed": false,
+      "date_utc": "2026-04-02 15:30:00",
+      "modified_utc": "2026-07-15 18:45:00",
+      "venue": {
+        "id": 905,
+        "venue": "Ace Virtual Event"
+      },
+      "organizer": [],
+      "categories": [
+        {
+          "name": "Operations and Meetings",
+          "slug": "operations-and-meetings",
+          "id": 74
+        }
+      ],
+      "tags": []
+    }
+  ],
+  "rest_url": "https://www.acemakerspace.org/wp-json/tribe/events/v1/events?start_date=2026-08-05&per_page=50&page=1",
+  "next_rest_url": "https://www.acemakerspace.org/wp-json/tribe/events/v1/events?start_date=2026-08-05&per_page=50&page=2",
+  "total": 5,
+  "total_pages": 2
+}

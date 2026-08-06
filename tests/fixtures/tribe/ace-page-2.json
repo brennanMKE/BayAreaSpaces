@@ -1,0 +1,92 @@
+{
+  "events": [
+    {
+      "id": 40201,
+      "global_id": "www.acemakerspace.org?id=40201",
+      "status": "publish",
+      "url": "https://www.acemakerspace.org/event/oakland-first-friday-2026-09-04/",
+      "title": "Oakland First Friday Booth",
+      "description": "<p>Off-site outreach booth. Come say hello.</p>",
+      "all_day": true,
+      "start_date": "2026-09-04 00:00:00",
+      "end_date": "2026-09-05 23:59:59",
+      "utc_start_date": "2026-09-04 07:00:00",
+      "utc_end_date": "2026-09-06 06:59:59",
+      "timezone": "America/Los_Angeles",
+      "timezone_abbr": "PDT",
+      "cost": "",
+      "website": "",
+      "featured": false,
+      "is_virtual": false,
+      "ticketed": false,
+      "date_utc": "2026-07-20 20:00:00",
+      "modified_utc": "2026-08-02 16:20:00",
+      "venue": {
+        "id": 907,
+        "venue": "Oakland First Friday",
+        "city": "Oakland",
+        "province": "CA",
+        "country": "United States"
+      },
+      "organizer": [
+        {
+          "id": 802,
+          "organizer": "Outreach Team",
+          "name": "Outreach Team"
+        }
+      ],
+      "categories": [
+        {
+          "name": "Outreach",
+          "slug": "outreach-events",
+          "id": 75
+        }
+      ],
+      "tags": []
+    },
+    {
+      "id": 40202,
+      "global_id": "www.acemakerspace.org?id=40202",
+      "status": "publish",
+      "url": "https://www.acemakerspace.org/event/annual-open-house-2027-06-05/",
+      "title": "Annual Open House",
+      "description": "<p>Beyond the 120-day horizon: TEC defaults end_date to +2 years.</p>",
+      "all_day": false,
+      "start_date": "2027-06-05 12:00:00",
+      "end_date": "2027-06-05 17:00:00",
+      "utc_start_date": "2027-06-05 19:00:00",
+      "utc_end_date": "2027-06-06 00:00:00",
+      "timezone": "America/Los_Angeles",
+      "timezone_abbr": "PDT",
+      "cost": "&#036;0.00",
+      "website": "",
+      "featured": false,
+      "is_virtual": false,
+      "ticketed": false,
+      "date_utc": "2026-07-01 18:00:00",
+      "modified_utc": "2026-07-01 18:00:00",
+      "venue": {
+        "id": 900,
+        "venue": "Ace Makerspace Suite 214",
+        "address": "6050 Lowell Street, Suite #214",
+        "city": "Oakland",
+        "province": "CA",
+        "zip": "94608",
+        "country": "United States"
+      },
+      "organizer": [],
+      "categories": [
+        {
+          "name": "Social",
+          "slug": "social-events",
+          "id": 76
+        }
+      ],
+      "tags": []
+    }
+  ],
+  "rest_url": "https://www.acemakerspace.org/wp-json/tribe/events/v1/events?start_date=2026-08-05&per_page=50&page=2",
+  "previous_rest_url": "https://www.acemakerspace.org/wp-json/tribe/events/v1/events?start_date=2026-08-05&per_page=50&page=1",
+  "total": 5,
+  "total_pages": 2
+}

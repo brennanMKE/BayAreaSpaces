@@ -230,6 +230,13 @@ def from_ics_event(event: IcsEvent) -> RawEvent:
     A field rename and nothing else: no conversion happens here, so a floating
     time is still naive when it reaches :func:`normalize_event` and still
     trips the policy above.
+
+    ``price`` is read with :func:`getattr` because iCalendar has no price
+    property and richer adapters do: issue 0019's
+    :class:`~pipeline.adapters.tribe_rest.TribeEvent` subclasses ``IcsEvent``
+    precisely so both feeds reach this function, and its ``cost`` is source
+    text ("sliding scale $10-30", "free for members") that must not be dropped
+    on the way through.
     """
     return RawEvent(
         source_uid=event.uid,
@@ -247,6 +254,7 @@ def from_ics_event(event: IcsEvent) -> RawEvent:
         description=event.description,
         url=event.url,
         categories=event.categories,
+        price=getattr(event, "price", None),
     )
 
 

@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import datetime as dt
 import hashlib
+import json
 from pathlib import Path
 
 import httpx
@@ -66,8 +67,9 @@ EXPECTED_SOURCES = 30
 EXPECTED_ENABLED = 26
 EXPECTED_DISABLED = 4
 EXPECTED_TODO = 1
-#: enabled, not TODO, and naming an adapter that exists today (ics, gcal_ics).
-EXPECTED_RUNNABLE = 13
+#: enabled, not TODO, and naming an adapter that exists today (ics, gcal_ics,
+#: tribe_rest). Issue 0019 added the last of those and with it Ace's REST feed.
+EXPECTED_RUNNABLE = 14
 
 ICS_BODY = b"""BEGIN:VCALENDAR\r
 VERSION:2.0\r
@@ -124,12 +126,66 @@ def feed_body(url: httpx.URL) -> bytes:
     ).replace(b"SUMMARY:Open Shop Night", f"SUMMARY:Workshop {digest}".encode())
 
 
+def tribe_body(url: httpx.URL) -> bytes:
+    """One TEC event, JSON, on a single page — the ``tribe_rest`` counterpart.
+
+    Ace's REST feed is the only ``tribe_rest`` source in the registry (issue
+    0019) and it does not speak iCalendar, so the calendar transport would hand
+    it a ``text/calendar`` body and it would correctly report a drifted source.
+    That would leave the run's counts measuring an adapter failure rather than
+    an adapter. Same shape as :func:`feed_body`: one event, inside the horizon,
+    with a title far enough from the others that dedupe leaves it alone.
+
+    No ``next_rest_url``, so pagination ends on page 1 — the walk itself is
+    tested in ``tests/test_adapter_tribe_rest.py``, not here.
+    """
+    digest = hashlib.sha1(str(url).encode()).hexdigest()[:8]
+    payload = {
+        "events": [
+            {
+                "id": 40100,
+                "global_id": f"tribe-{digest}",
+                "status": "publish",
+                "url": "https://example.test/event/tribe-1",
+                "title": f"Laser Night {digest}",
+                "description": "Come make something.",
+                "all_day": False,
+                "start_date": "2026-08-11 11:00:00",
+                "end_date": "2026-08-11 13:00:00",
+                "utc_start_date": "2026-08-11 18:00:00",
+                "utc_end_date": "2026-08-11 20:00:00",
+                "timezone": "America/Los_Angeles",
+                "cost": "&#036;20.00",
+                "is_virtual": False,
+                "ticketed": True,
+                "venue": {
+                    "venue": "Test Venue",
+                    "address": "1234 Test Ave",
+                    "city": "Oakland",
+                    "province": "CA",
+                },
+                "organizer": [{"organizer": "Team Test"}],
+                "categories": [{"name": "Laser", "slug": "laser-events"}],
+            }
+        ],
+        "total": 1,
+        "total_pages": 1,
+    }
+    return json.dumps(payload).encode("utf-8")
+
+
 def calendar_transport(body: bytes | None = None) -> httpx.MockTransport:
-    """Serves ``robots.txt`` as 404 and everything else as a calendar."""
+    """Serves ``robots.txt`` as 404, TEC REST as JSON, everything else as ICS."""
 
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/robots.txt":
             return httpx.Response(404)
+        if body is None and request.url.path.startswith("/wp-json/tribe/"):
+            return httpx.Response(
+                200,
+                content=tribe_body(request.url),
+                headers={"Content-Type": "application/json; charset=utf-8"},
+            )
         payload = body if body is not None else feed_body(request.url)
         return httpx.Response(
             200, content=payload, headers={"Content-Type": "text/calendar; charset=utf-8"}
@@ -248,13 +304,20 @@ def test_every_registry_adapter_has_a_dispatch_entry():
     assert set(ADAPTERS) == set(KNOWN_ADAPTERS)
 
 
-def test_only_ics_and_gcal_ics_are_implemented_today():
-    assert implemented_adapters() == {"ics", "gcal_ics"}
+def test_only_the_calendar_and_tribe_adapters_are_implemented_today():
+    assert implemented_adapters() == {"ics", "gcal_ics", "tribe_rest"}
+
+
+def test_tribe_rest_is_the_one_adapter_that_paginates():
+    """It follows the feed's own ``next_rest_url``, so it needs the fetcher."""
+    assert ADAPTERS["tribe_rest"].paginates is True
+    assert not any(
+        entry.paginates for name, entry in ADAPTERS.items() if name != "tribe_rest"
+    )
 
 
 def test_pending_adapters_name_the_issue_that_implements_them():
     expected = {
-        "tribe_rest": "0019",
         "jsonld": "0020",
         "embedded_json": "0021",
         "json": "0022",
@@ -304,7 +367,8 @@ def test_validate_names_implemented_and_pending_adapters(env, tmp_path: Path, ca
     out = capsys.readouterr().out
 
     assert "ics" in out and "implemented (issue 0007)" in out
-    assert "NOT implemented (issue 0019)" in out  # tribe_rest
+    assert "implemented (issue 0019)" in out  # tribe_rest, since this issue
+    assert "NOT implemented (issue 0020)" in out  # jsonld
     assert "TODO (issue 0002)" in out  # sequoia-fabrica bookwhen-public
     assert "disabled" in out
 
@@ -394,13 +458,13 @@ def test_dry_run_publishes_every_runnable_source(env, tmp_path: Path, registry):
     # One VEVENT per feed, every one inside the horizon.
     assert all(record.horizon_count == 1 for record in report.ran)
 
-    # Three of the thirteen carry a `location_contains` filter that the
+    # Three of the fourteen carry a `location_contains` filter that the
     # fixture's Oakland address does not match, so they legitimately keep
     # nothing. Filters drop events silently — the point of asserting on the
-    # count rather than on 13 is that the drop shows up here if it changes.
+    # count rather than on 14 is that the drop shows up here if it changes.
     filtered_out = sum(record.filtered_out_count for record in report.ran)
     assert filtered_out == 3
-    assert report.event_count == EXPECTED_RUNNABLE - filtered_out == 10
+    assert report.event_count == EXPECTED_RUNNABLE - filtered_out == 11
     assert report.exit_code == EXIT_OK
     assert report.published is True
 
