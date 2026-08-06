@@ -34,10 +34,10 @@ way to be exercised.
 Six decisions worth stating
 ---------------------------
 
-**Unimplemented adapters skip, they do not crash.** Five of the ten adapter
+**Unimplemented adapters skip, they do not crash.** Six of the ten adapter
 names in ``sources.yaml`` are implemented today (``ics``, ``gcal_ics``,
-``tribe_rest``, ``jsonld``, ``embedded_json``); the other five are issues
-0022-0025 and 0028. A
+``tribe_rest``, ``jsonld``, ``embedded_json``, ``json``); the other four are
+issues 0023-0025 and 0028. A
 registry entry naming one of those is reported as skipped with the issue number,
 so a run today produces the Tier A calendar rather than a traceback.
 
@@ -95,6 +95,7 @@ from pipeline import __version__
 from pipeline.adapters.embedded_json import parse_embedded_json
 from pipeline.adapters.gcal_ics import parse_gcal_ics
 from pipeline.adapters.ics import IcsParse, parse_ics
+from pipeline.adapters.json_doc import parse_json
 from pipeline.adapters.jsonld import parse_jsonld
 from pipeline.adapters.tribe_rest import parse_tribe_rest
 from pipeline.carry_forward import CarryForward, apply_carry_forward
@@ -267,6 +268,9 @@ class AdapterEntry:
     #:   ``/events?format=rss`` carries no event date at all, only ``pubDate``,
     #:   so each item's ``/events/<slug>`` page has to be read for the real
     #:   ``startDate``.
+    #: - ``json`` (issue 0022) follows a **header**: The Crucible's Store API
+    #:   declares ``X-WP-TotalPages: 4`` and ``page=99`` answers 200 with
+    #:   ``[]``, so the page count is read rather than discovered.
     #:
     #: :func:`process_source` hands those adapters the fetcher and the
     #: ``SourceRef``, so every extra request stays inside the same rate limiter,
@@ -306,7 +310,10 @@ ADAPTERS: dict[str, AdapterEntry] = {
     "embedded_json": AdapterEntry(
         "embedded_json", "0021", parse_embedded_json, needs_source=True
     ),
-    "json": AdapterEntry("json", "0022"),
+    # Paginating *and* configuration-hungry: The Crucible's Store API is 4
+    # pages, and both consumers need the registry entry (`shape`, `min_total`).
+    # `paginates=True` hands it the fetcher and the ref, which is exactly both.
+    "json": AdapterEntry("json", "0022", parse_json, paginates=True),
     "nextdata": AdapterEntry("nextdata", "0023"),
     "bookwhen_html": AdapterEntry("bookwhen_html", "0024"),
     "rss": AdapterEntry("rss", "0025"),

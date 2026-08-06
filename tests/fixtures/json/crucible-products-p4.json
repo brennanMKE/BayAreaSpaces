@@ -1,0 +1,30 @@
+[
+  {
+    "id": 66666,
+    "name": "Youth Blacksmithing Immersion",
+    "permalink": "https://www.thecrucible.org/product/youth-blacksmithing-immersion/",
+    "short_description": "<p>Five mornings at the forge, ages 12&#8211;18.</p>",
+    "description": "<p>Youth Blacksmithing Immersion.</p>",
+    "prices": {
+      "price": "89500",
+      "price_range": null,
+      "currency_code": "USD",
+      "currency_symbol": "$",
+      "currency_minor_unit": 2
+    },
+    "is_in_stock": true,
+    "categories": [
+      { "id": 91, "name": "Youth Blacksmithing Immersion", "slug": "youth-blacksmithing-immersion" }
+    ],
+    "attributes": [
+      {
+        "id": 3,
+        "name": "Class Date",
+        "taxonomy": "pa_class-date",
+        "has_variations": true,
+        "terms": [{ "id": 7401, "name": "08/22/26 10:00 am", "slug": "08-22-26-10-00-am" }]
+      }
+    ],
+    "variations": [{ "id": 66667 }]
+  }
+]

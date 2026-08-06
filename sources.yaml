@@ -14,7 +14,11 @@
 #                  server-rendered page, plus a field map. Generalizes nextdata
 #                  (which is nextdata with script_id hardcoded); nextdata could
 #                  be reimplemented on top of it later. Needs `script_id`.
-#   json           plain JSON document with a bespoke shape + field mapping
+#   json           plain JSON document with a bespoke shape + field mapping.
+#                  Needs `shape` (one of the named maps in
+#                  pipeline/adapters/json_doc.py). Optional `min_total`: the
+#                  smallest item count the response may report before the parse
+#                  is failed as a truncated catalog.
 #   rss            RSS/Atom. Only an event source when items carry a real start
 #                  date; most do not. Otherwise change-detection only.
 #   bookwhen_html  server-rendered Bookwhen agenda table (deterministic, no browser)
@@ -257,6 +261,13 @@ spaces:
       - adapter: json
         url: https://www.thecrucible.org/wp-json/wc/store/v1/products
         params: { per_page: 100, orderby: date }
+        shape: woocommerce_store_products
+        # Observed X-WP-Total is 353 (matching product-sitemap.xml's 354 URLs).
+        # WITHOUT orderby=date the same endpoint answers 200, valid JSON and
+        # X-WP-Total: 98. This floor is the second, independent guard: the
+        # adapter also refuses to parse if orderby=date is missing from the
+        # request, and neither check trusts the other.
+        min_total: 300
         label: woocommerce-store-api
         trust: 90
         verified: true
@@ -751,6 +762,7 @@ spaces:
           title_excludes: ["(Equipment Training)"]
       - adapter: json
         url: https://storage.googleapis.com/makernexus_amilia_activities_cache/events.json
+        shape: amilia_activities_cache
         label: amilia-community-events-cache
         trust: 90
         verified: true

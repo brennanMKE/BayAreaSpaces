@@ -1,0 +1,50 @@
+[
+  {
+    "id": 33333,
+    "name": "Gift Certificate",
+    "permalink": "https://www.thecrucible.org/product/gift-certificate/",
+    "short_description": "<p>Not a class. Carries no class-date attribute at all.</p>",
+    "description": "<p>Gift certificate.</p>",
+    "prices": {
+      "price": "10000",
+      "price_range": null,
+      "currency_code": "USD",
+      "currency_symbol": "$",
+      "currency_minor_unit": 2
+    },
+    "is_in_stock": true,
+    "categories": [{ "id": 80, "name": "Gift Certificates", "slug": "gift-certificates" }],
+    "attributes": [],
+    "variations": []
+  },
+  {
+    "id": 44444,
+    "name": "Woodworking I",
+    "permalink": "https://www.thecrucible.org/product/woodworking-i/",
+    "short_description": "<p>Forty hours across a fortnight.</p>",
+    "description": "<p>Woodworking I.</p>",
+    "prices": {
+      "price": "120000",
+      "price_range": null,
+      "currency_code": "USD",
+      "currency_symbol": "$",
+      "currency_minor_unit": 2
+    },
+    "is_in_stock": true,
+    "categories": [{ "id": 61, "name": "Woodworking I", "slug": "woodworking-i" }],
+    "attributes": [
+      {
+        "id": 3,
+        "name": "Class Date",
+        "taxonomy": "pa_class-date",
+        "has_variations": true,
+        "terms": [
+          { "id": 7201, "name": "06/13/25 9:00 am", "slug": "06-13-25-9-00-am" },
+          { "id": 7202, "name": "09/15/26 6:00 pm", "slug": "09-15-26-6-00-pm" },
+          { "id": 7203, "name": "12/20/26 9:00 am", "slug": "12-20-26-9-00-am" }
+        ]
+      }
+    ],
+    "variations": [{ "id": 44445 }]
+  }
+]

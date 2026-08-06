@@ -1,0 +1,67 @@
+[
+  {
+    "id": 12345,
+    "name": "Blacksmithing I &#8211; 5 weeks",
+    "permalink": "https://www.thecrucible.org/product/blacksmithing-i-5-weeks/",
+    "short_description": "<p>Forge basics over five evenings.</p>",
+    "description": "<p>A five-week introduction to the forge.</p>",
+    "prices": {
+      "price": "49500",
+      "regular_price": "49500",
+      "sale_price": "49500",
+      "price_range": null,
+      "currency_code": "USD",
+      "currency_symbol": "$",
+      "currency_minor_unit": 2
+    },
+    "is_in_stock": true,
+    "categories": [
+      { "id": 41, "name": "Blacksmithing I", "slug": "blacksmithing-i" },
+      { "id": 9, "name": "Blacksmithing", "slug": "blacksmithing" }
+    ],
+    "attributes": [
+      {
+        "id": 3,
+        "name": "Class Date",
+        "taxonomy": "pa_class-date",
+        "has_variations": true,
+        "terms": [
+          { "id": 7011, "name": "08/06/26 6:00 pm", "slug": "08-06-26-6-00-pm" },
+          { "id": 7012, "name": "10/01/26 6:00 pm", "slug": "10-01-26-6-00-pm" },
+          { "id": 7013, "name": "01/01/70 12:00 am", "slug": "01-01-70-12-00-am" }
+        ]
+      }
+    ],
+    "variations": [{ "id": 12346 }, { "id": 12347 }]
+  },
+  {
+    "id": 22222,
+    "name": "Glass Fusing &amp; Slumping Lab",
+    "permalink": "https://www.thecrucible.org/product/glass-fusing-slumping-lab/",
+    "short_description": "<p>Open lab time in the kiln room.</p>",
+    "description": "<p>Open lab.</p>",
+    "prices": {
+      "price": "9500",
+      "regular_price": "12500",
+      "sale_price": "9500",
+      "price_range": { "min_amount": "9500", "max_amount": "12500" },
+      "currency_code": "USD",
+      "currency_symbol": "$",
+      "currency_minor_unit": 2
+    },
+    "is_in_stock": false,
+    "categories": [
+      { "id": 52, "name": "Glass Fusing and Slumping Lab", "slug": "glass-fusing-and-slumping-lab" }
+    ],
+    "attributes": [
+      {
+        "id": 3,
+        "name": "Class Date",
+        "taxonomy": "pa_class-date",
+        "has_variations": true,
+        "terms": [{ "id": 7101, "name": "11/12/26 10:00 am", "slug": "11-12-26-10-00-am" }]
+      }
+    ],
+    "variations": [{ "id": 22223 }]
+  }
+]

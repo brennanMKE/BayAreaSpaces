@@ -183,7 +183,27 @@ class Source(BaseModel):
     url: str | None = None
     calendar_id: str | None = None
     script_id: str | None = None
+
+    # Which bespoke document shape a `json` source has. Required for that
+    # adapter for the same reason `script_id` is required for `embedded_json`:
+    # the two registered documents (a dict keyed "YYYY-MM-DD_<amiliaId>" and a
+    # WooCommerce product list) have nothing in common, and sniffing which one
+    # arrived would be a guess. Validated against pipeline.adapters.json_doc.SHAPES.
+    shape: str | None = None
+
+    # `params` is load-bearing, not cosmetic. The Crucible's Store API returns
+    # HTTP 200 and valid JSON with 72% of the catalog missing when `orderby=date`
+    # is absent -- see `min_total` below, which is the second, independent guard.
     params: dict[str, Any] = Field(default_factory=dict)
+
+    # The smallest item total this source is registered to carry, checked
+    # against the count the response itself reports (`X-WP-Total`). A source
+    # reporting fewer is treated as **truncated**, not as a small catalog: the
+    # recorded case is `wc/store/v1/products` without `orderby=date`, which
+    # answers 200 with valid JSON and 98 products instead of 353. This exists so
+    # the amputation is caught from the *response* even when the request looked
+    # right.
+    min_total: int | None = Field(default=None, gt=0)
 
     label: str | None = None
     trust: int = Field(default=0, ge=0)
@@ -215,6 +235,28 @@ class Source(BaseModel):
                 )
         if self.adapter == "embedded_json" and not self.script_id:
             raise ValueError("adapter 'embedded_json' requires script_id")
+        if self.adapter == "json":
+            # Imported here rather than at module scope: pipeline.adapters
+            # imports pipeline.config, and a top-level import would be a cycle.
+            from pipeline.adapters.json_doc import SHAPES
+
+            if not self.shape:
+                raise ValueError(
+                    "adapter 'json' requires shape. The adapter maps a bespoke "
+                    "document onto the event schema and the registered documents "
+                    "have nothing in common, so sniffing the shape would be a "
+                    f"guess. Known shapes: {', '.join(sorted(SHAPES))}"
+                )
+            if self.shape not in SHAPES:
+                raise ValueError(
+                    f"unknown shape {self.shape!r}; known shapes: "
+                    f"{', '.join(sorted(SHAPES))}"
+                )
+        elif self.shape:
+            raise ValueError(
+                f"adapter {self.adapter!r} takes no shape ({self.shape!r}); "
+                "shape is the 'json' adapter's document map"
+            )
         return self
 
     @property

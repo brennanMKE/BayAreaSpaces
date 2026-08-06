@@ -1,0 +1,28 @@
+[
+  {
+    "id": 55555,
+    "name": "Neon Lab",
+    "permalink": "https://www.thecrucible.org/product/neon-lab/",
+    "short_description": "<p>Open studio access for certified neon students.</p>",
+    "description": "<p>Neon Lab.</p>",
+    "prices": {
+      "price": "8500",
+      "price_range": null,
+      "currency_code": "USD",
+      "currency_symbol": "$",
+      "currency_minor_unit": 2
+    },
+    "is_in_stock": true,
+    "categories": [{ "id": 71, "name": "Neon Lab", "slug": "neon-lab" }],
+    "attributes": [
+      {
+        "id": 3,
+        "name": "Class Date",
+        "taxonomy": "pa_class-date",
+        "has_variations": true,
+        "terms": [{ "id": 7301, "name": "09/03/26 7:00 pm", "slug": "09-03-26-7-00-pm" }]
+      }
+    ],
+    "variations": [{ "id": 55556 }]
+  }
+]

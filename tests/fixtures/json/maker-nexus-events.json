@@ -1,0 +1,73 @@
+{
+  "2026-08-06_2314915": {
+    "Id": 2314915,
+    "Name": "Board Game Night",
+    "Description": "Open board gaming in the community room. All ages welcome.",
+    "Url": "https://app.amilia.com/store/en/makernexus/shop/activities/2314915",
+    "ProgramName": "Community Events",
+    "CategoryName": "Community Events",
+    "SubCategoryName": "Social",
+    "Price": 0,
+    "SpotsRemaining": 24,
+    "MaxAttendance": 30,
+    "StartDate": "2026-08-06T18:00:00-07:00",
+    "EndDate": "2026-08-06T21:00:00-07:00",
+    "Schedules": []
+  },
+  "2026-08-13_2314916": {
+    "Id": 2314916,
+    "Name": "3D Printing Thursdays",
+    "Description": "Bring a print that failed and we will work out why.",
+    "Url": "https://app.amilia.com/store/en/makernexus/shop/activities/2314916",
+    "ProgramName": "Community Events",
+    "CategoryName": "Community Events",
+    "SubCategoryName": "Workshop",
+    "Price": 15.0,
+    "SpotsRemaining": 4,
+    "MaxAttendance": 12,
+    "StartDate": "2026-08-13T19:00:00-07:00",
+    "EndDate": "2026-08-13T21:00:00-07:00",
+    "Schedules": []
+  },
+  "2026-10-22_2318844": {
+    "Id": 2318844,
+    "Name": "Sew &amp; Tell",
+    "Description": "Textiles show and tell.",
+    "Url": "https://app.amilia.com/store/en/makernexus/shop/activities/2318844",
+    "ProgramName": "Community Events",
+    "CategoryName": "Community Events",
+    "SubCategoryName": "Social",
+    "Price": 0,
+    "SpotsRemaining": 40,
+    "MaxAttendance": 40,
+    "StartDate": "2026-10-22T18:30:00-07:00",
+    "EndDate": "2026-10-22T20:30:00-07:00",
+    "Schedules": []
+  },
+  "2027-03-01_2399999": {
+    "Id": 2399999,
+    "Name": "Spring Open House",
+    "Description": "Beyond the 120-day horizon; kept in the document, clipped by the adapter.",
+    "Url": "https://app.amilia.com/store/en/makernexus/shop/activities/2399999",
+    "ProgramName": "Community Events",
+    "CategoryName": "Community Events",
+    "Price": 0,
+    "SpotsRemaining": 100,
+    "MaxAttendance": 100,
+    "StartDate": "2027-03-01T11:00:00-08:00",
+    "EndDate": "2027-03-01T15:00:00-08:00",
+    "Schedules": []
+  },
+  "2026-09-02_2314920": {
+    "Id": 2314920,
+    "Name": "New Member Orientation",
+    "Description": "A record with no StartDate at all. Counted, never emitted.",
+    "Url": "https://app.amilia.com/store/en/makernexus/shop/activities/2314920",
+    "ProgramName": "Community Events",
+    "CategoryName": "Community Events",
+    "Price": 0,
+    "SpotsRemaining": 8,
+    "MaxAttendance": 20,
+    "Schedules": []
+  }
+}

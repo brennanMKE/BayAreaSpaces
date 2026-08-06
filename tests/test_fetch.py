@@ -334,7 +334,8 @@ def test_host_and_origin_helpers():
 
 def test_robots_disallow_blocks_the_fetch(tmp_path):
     registry = make_registry(
-        space("boxshop", {"adapter": "json", "url": "https://www.lower48.org/events?format=json", "label": "json"})
+        space("boxshop", {"adapter": "json", "url": "https://www.lower48.org/events?format=json",
+         "shape": "woocommerce_store_products", "label": "json"})
     )
     router = Router(robots={"www.lower48.org": "User-agent: *\nDisallow: /events?format=json\n"})
 
@@ -997,6 +998,10 @@ def test_registry_params_are_merged_into_the_query(tmp_path):
                 "adapter": "json",
                 "url": "https://www.thecrucible.org/wp-json/wc/store/v1/products",
                 "params": {"per_page": 100, "orderby": "date"},
+                # Required for this adapter since issue 0022: the two registered
+                # documents have nothing in common, so the shape is named rather
+                # than sniffed.
+                "shape": "woocommerce_store_products",
                 "label": "woocommerce-store-api",
             },
         )

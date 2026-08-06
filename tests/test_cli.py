@@ -11,8 +11,8 @@ open a socket to ``localhost:1234``.
 
 What is being defended:
 
-**A run today produces a calendar.** Six of the ten adapter names in
-``sources.yaml`` are still issues 0021-0025 and 0028. Meeting one must skip with
+**A run today produces a calendar.** Four of the ten adapter names in
+``sources.yaml`` are still issues 0023-0025 and 0028. Meeting one must skip with
 its issue number, not end the run — otherwise Phase 1 delivers nothing until
 Phase 2 is finished.
 
@@ -68,10 +68,12 @@ EXPECTED_ENABLED = 26
 EXPECTED_DISABLED = 4
 EXPECTED_TODO = 1
 #: enabled, not TODO, and naming an adapter that exists today (ics, gcal_ics,
-#: tribe_rest, jsonld, embedded_json). Issue 0019 added Ace's REST feed; issue
-#: 0020 added Ace's JSON-LD calendar page and The Box Shop's two-step
-#: Squarespace source; issue 0021 added The Crucible's course-catalog blob.
-EXPECTED_RUNNABLE = 17
+#: tribe_rest, jsonld, embedded_json, json). Issue 0019 added Ace's REST feed;
+#: issue 0020 added Ace's JSON-LD calendar page and The Box Shop's two-step
+#: Squarespace source; issue 0021 added The Crucible's course-catalog blob;
+#: issue 0022 added The Crucible's WooCommerce Store API and Maker Nexus's
+#: Amilia cache.
+EXPECTED_RUNNABLE = 19
 
 ICS_BODY = b"""BEGIN:VCALENDAR\r
 VERSION:2.0\r
@@ -246,8 +248,73 @@ def embedded_json_body(url: httpx.URL) -> bytes:
     ).encode("utf-8")
 
 
+def woo_products_body(url: httpx.URL) -> bytes:
+    """The Crucible's WooCommerce Store API — the ``json`` counterpart (0022).
+
+    One product with one ``pa_class-date`` term: ``MM/DD/YY H:MM am/pm``, local
+    ``America/Los_Angeles``, inside the horizon. Served with ``X-WP-Total`` above
+    the registry's ``min_total`` floor, because a smaller total is the
+    quietly-amputated catalog and the adapter is right to refuse it.
+    """
+    digest = hashlib.sha1(str(url).encode()).hexdigest()[:8]
+    post_id = int(digest, 16) % 900000 + 100000
+    return json.dumps(
+        [
+            {
+                "id": post_id,
+                "name": f"Welding Intensive {digest}",
+                "permalink": str(url),
+                "short_description": "<p>Two days in the metal shop.</p>",
+                "prices": {
+                    "price": "42500",
+                    "price_range": None,
+                    "currency_symbol": "$",
+                    "currency_minor_unit": 2,
+                },
+                "is_in_stock": True,
+                "categories": [{"id": 1, "name": f"Welding Intensive {digest}"}],
+                "attributes": [
+                    {
+                        "id": 3,
+                        "name": "Class Date",
+                        "taxonomy": "pa_class-date",
+                        "terms": [{"id": post_id + 1, "name": "08/20/26 9:00 am"}],
+                    }
+                ],
+            }
+        ]
+    ).encode("utf-8")
+
+
+def amilia_cache_body(url: httpx.URL) -> bytes:
+    """Maker Nexus's Amilia cache — the other ``json`` consumer (issue 0022).
+
+    A **dict** keyed ``YYYY-MM-DD_<amiliaId>``; the key is the UID. ``StartDate``
+    is ISO-8601 with a literal ``-07:00``.
+    """
+    digest = hashlib.sha1(str(url).encode()).hexdigest()[:8]
+    amilia_id = int(digest, 16) % 900000 + 100000
+    return json.dumps(
+        {
+            f"2026-08-20_{amilia_id}": {
+                "Id": amilia_id,
+                "Name": f"Board Game Night {digest}",
+                "Description": "Open gaming in the community room.",
+                "Url": str(url),
+                "CategoryName": "Community Events",
+                "Price": 0,
+                "SpotsRemaining": 12,
+                "MaxAttendance": 30,
+                "StartDate": "2026-08-20T18:00:00-07:00",
+                "EndDate": "2026-08-20T21:00:00-07:00",
+            }
+        }
+    ).encode("utf-8")
+
+
 def calendar_transport(body: bytes | None = None) -> httpx.MockTransport:
-    """``robots.txt`` 404, TEC REST as JSON, JSON-LD pages as HTML, rest as ICS.
+    """``robots.txt`` 404, TEC REST and the two ``json`` documents as JSON,
+    JSON-LD pages as HTML, rest as ICS.
 
     Every adapter in the dispatch table needs a body it can actually parse, or
     the run's counts stop measuring the run and start measuring an adapter
@@ -270,6 +337,25 @@ def calendar_transport(body: bytes | None = None) -> httpx.MockTransport:
                 200,
                 content=jsonld_seed_body(url),
                 headers={"Content-Type": "application/rss+xml; charset=utf-8"},
+            )
+        if body is None and url.path.startswith("/wp-json/wc/store/"):
+            # The Crucible's Store API. `orderby=date` is on the request because
+            # sources.yaml puts it there, and the adapter refuses the parse if it
+            # is not -- see tests/test_adapter_json.py.
+            return httpx.Response(
+                200,
+                content=woo_products_body(url),
+                headers={
+                    "Content-Type": "application/json; charset=utf-8",
+                    "X-WP-Total": "353",
+                    "X-WP-TotalPages": "1",
+                },
+            )
+        if body is None and url.path.endswith("_activities_cache/events.json"):
+            return httpx.Response(
+                200,
+                content=amilia_cache_body(url),
+                headers={"Content-Type": "application/json; charset=utf-8"},
             )
         if body is None and url.path == "/course-search/":
             # The Crucible's named blob. Registered as embedded_json, and the
@@ -404,13 +490,14 @@ def test_every_registry_adapter_has_a_dispatch_entry():
     assert set(ADAPTERS) == set(KNOWN_ADAPTERS)
 
 
-def test_only_the_calendar_tribe_jsonld_and_blob_adapters_are_implemented_today():
+def test_only_the_calendar_tribe_jsonld_blob_and_json_adapters_are_implemented_today():
     assert implemented_adapters() == {
         "ics",
         "gcal_ics",
         "tribe_rest",
         "jsonld",
         "embedded_json",
+        "json",
     }
 
 
@@ -430,25 +517,26 @@ def test_one_adapter_needs_its_registry_entry_but_not_the_fetcher():
     )
 
 
-def test_two_adapters_need_the_fetcher_for_follow_up_requests():
-    """``tribe_rest`` follows ``next_rest_url``; ``jsonld`` follows a seed list.
+def test_three_adapters_need_the_fetcher_for_follow_up_requests():
+    """``tribe_rest`` follows ``next_rest_url``; ``jsonld`` follows a seed list;
+    ``json`` follows ``X-WP-TotalPages``.
 
-    Different reasons, one seam: both get the fetcher and the ``SourceRef`` so
-    their extra requests stay inside one rate limiter, one ``robots.txt``
-    decision and one ``raw/`` archive.
+    Three different reasons, one seam: each gets the fetcher and the
+    ``SourceRef`` so its extra requests stay inside one rate limiter, one
+    ``robots.txt`` decision and one ``raw/`` archive.
     """
     assert ADAPTERS["tribe_rest"].paginates is True
     assert ADAPTERS["jsonld"].paginates is True
+    assert ADAPTERS["json"].paginates is True
     assert not any(
         entry.paginates
         for name, entry in ADAPTERS.items()
-        if name not in ("tribe_rest", "jsonld")
+        if name not in ("tribe_rest", "jsonld", "json")
     )
 
 
 def test_pending_adapters_name_the_issue_that_implements_them():
     expected = {
-        "json": "0022",
         "nextdata": "0023",
         "bookwhen_html": "0024",
         "rss": "0025",
@@ -497,8 +585,9 @@ def test_validate_names_implemented_and_pending_adapters(env, tmp_path: Path, ca
     assert "ics" in out and "implemented (issue 0007)" in out
     assert "implemented (issue 0019)" in out  # tribe_rest
     assert "implemented (issue 0020)" in out  # jsonld
-    assert "implemented (issue 0021)" in out  # embedded_json, since this issue
-    assert "NOT implemented (issue 0022)" in out  # json
+    assert "implemented (issue 0021)" in out  # embedded_json
+    assert "implemented (issue 0022)" in out  # json, since this issue
+    assert "NOT implemented (issue 0023)" in out  # nextdata
     assert "TODO (issue 0002)" in out  # sequoia-fabrica bookwhen-public
     assert "disabled" in out
 
@@ -588,13 +677,13 @@ def test_dry_run_publishes_every_runnable_source(env, tmp_path: Path, registry):
     # One VEVENT per feed, every one inside the horizon.
     assert all(record.horizon_count == 1 for record in report.ran)
 
-    # Three of the seventeen carry a `location_contains` filter that the
+    # Three of the nineteen carry a `location_contains` filter that the
     # fixture's Oakland address does not match, so they legitimately keep
     # nothing. Filters drop events silently — the point of asserting on the
-    # count rather than on 17 is that the drop shows up here if it changes.
+    # count rather than on 19 is that the drop shows up here if it changes.
     filtered_out = sum(record.filtered_out_count for record in report.ran)
     assert filtered_out == 3
-    assert report.event_count == EXPECTED_RUNNABLE - filtered_out == 14
+    assert report.event_count == EXPECTED_RUNNABLE - filtered_out == 16
     assert report.exit_code == EXIT_OK
     assert report.published is True
 
@@ -604,8 +693,8 @@ def test_unimplemented_adapter_is_skipped_with_its_issue_number(
 ):
     report = run_pipeline(
         registry,
-        # embedded_json is implemented (issue 0021); json, nextdata and rss are
-        # not, so this space still exercises the skip path.
+        # embedded_json (0021) and json (0022) are implemented; nextdata is not,
+        # so this space still exercises the skip path.
         space_id="the-crucible",
         out_dir=tmp_path / "out",
         raw_dir=tmp_path / "raw",
@@ -616,12 +705,12 @@ def test_unimplemented_adapter_is_skipped_with_its_issue_number(
         llm_probe=offline_llm,
     )
 
-    record = report.record_for("the-crucible", "woocommerce-store-api")
+    record = report.record_for("the-crucible", "eventbrite-organizer")
     assert record is not None
     assert record.status == "skipped"
     assert record.skipped_because == "adapter_not_implemented"
     assert "not yet implemented" in (record.reason or "")
-    assert "0022" in (record.reason or "")
+    assert "0023" in (record.reason or "")
     # Skipped, not crashed: the run finished and reported the whole space.
     assert len(report.records) == 4
     assert report.exit_code == EXIT_OK
