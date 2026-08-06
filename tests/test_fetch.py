@@ -352,7 +352,7 @@ def test_robots_disallow_blocks_the_fetch(tmp_path):
 def test_robots_allows_the_permitted_route_on_the_same_host(tmp_path):
     """The Box Shop disallows ?format=json and ?format=ical, allows ?format=rss."""
     registry = make_registry(
-        space("boxshop", {"adapter": "rss", "url": "https://www.lower48.org/events?format=rss", "label": "rss"})
+        space("boxshop", {"adapter": "rss", "pubdate_means": "post_date", "url": "https://www.lower48.org/events?format=rss", "label": "rss"})
     )
     robots = "User-agent: *\nDisallow: /events?format=json\nDisallow: /events?format=ical\n"
     router = Router(robots={"www.lower48.org": robots})
@@ -392,7 +392,7 @@ def test_path_level_disallows_bind_even_when_a_named_group_would_permit(tmp_path
 def test_ai_agent_disallows_do_not_apply_to_this_pipeline(tmp_path):
     """lower48.org names ClaudeBot, GPTBot and 21 others; we are none of them."""
     registry = make_registry(
-        space("boxshop", {"adapter": "rss", "url": "https://www.lower48.org/events?format=rss", "label": "rss"})
+        space("boxshop", {"adapter": "rss", "pubdate_means": "post_date", "url": "https://www.lower48.org/events?format=rss", "label": "rss"})
     )
     robots = (
         "User-agent: ClaudeBot\nDisallow: /\n\n"
@@ -600,7 +600,7 @@ def test_no_conditional_headers_without_stored_state(tmp_path):
 
 def test_a_404_with_a_valid_rss_body_keeps_both_the_status_and_the_body(tmp_path):
     """Live in this registry: 404 carrying a populated, valid RSS feed."""
-    registry = make_registry(space("boxshop", {"adapter": "rss", "url": "https://www.lower48.org/feed", "label": "rss"}))
+    registry = make_registry(space("boxshop", {"adapter": "rss", "pubdate_means": "post_date", "url": "https://www.lower48.org/feed", "label": "rss"}))
     router = Router()
     router.add(
         "https://www.lower48.org/feed",
@@ -627,7 +627,7 @@ def test_a_404_with_a_valid_rss_body_keeps_both_the_status_and_the_body(tmp_path
 def test_a_404_with_an_rss_content_type_over_an_html_body_reports_both(tmp_path):
     """The 1.35 MB case: the header says RSS, the bytes are HTML. Both survive."""
     html = b"<!doctype html>" + b"<p>filler</p>" * 500
-    registry = make_registry(space("dojo", {"adapter": "rss", "url": "https://events.hackerdojo.com/feed", "label": "rss"}))
+    registry = make_registry(space("dojo", {"adapter": "rss", "pubdate_means": "post_date", "url": "https://events.hackerdojo.com/feed", "label": "rss"}))
     router = Router()
     router.add(
         "https://events.hackerdojo.com/feed",
@@ -721,7 +721,7 @@ def test_split_content_type():
 
 def test_text_decodes_with_the_declared_charset(tmp_path):
     body = "Café Night".encode("latin-1")
-    registry = make_registry(space("s", {"adapter": "rss", "url": "https://s.example.org/f", "label": "f"}))
+    registry = make_registry(space("s", {"adapter": "rss", "pubdate_means": "post_date", "url": "https://s.example.org/f", "label": "f"}))
     router = Router()
     router.add("https://s.example.org/f", reply(body=body, content_type="text/xml; charset=iso-8859-1"))
 
@@ -767,7 +767,7 @@ def test_the_raw_extension_follows_the_response_not_the_adapter(tmp_path):
 
 
 def test_raw_is_archived_before_the_adapter_sees_anything_even_on_a_404(tmp_path):
-    registry = make_registry(space("boxshop", {"adapter": "rss", "url": "https://www.lower48.org/feed", "label": "rss"}))
+    registry = make_registry(space("boxshop", {"adapter": "rss", "pubdate_means": "post_date", "url": "https://www.lower48.org/feed", "label": "rss"}))
     router = Router()
     router.add("https://www.lower48.org/feed", reply(status=404, body=RSS_BODY, content_type="application/rss+xml"))
 
@@ -909,7 +909,7 @@ def test_a_persistent_503_is_failed_but_still_reports_status_and_body(tmp_path):
 
 def test_a_404_is_not_retried(tmp_path):
     """404 carries a real feed here; retrying it would be useless and rude."""
-    registry = make_registry(space("boxshop", {"adapter": "rss", "url": "https://www.lower48.org/feed", "label": "rss"}))
+    registry = make_registry(space("boxshop", {"adapter": "rss", "pubdate_means": "post_date", "url": "https://www.lower48.org/feed", "label": "rss"}))
     router = Router()
     router.add("https://www.lower48.org/feed", reply(status=404, body=RSS_BODY, content_type="application/rss+xml"))
 

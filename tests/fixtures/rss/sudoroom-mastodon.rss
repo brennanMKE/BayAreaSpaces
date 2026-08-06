@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  https://sfba.social/@sudoroom.rss as surveyed 2026-08-05, trimmed from 20 items
+  to four.
+
+  A Mastodon account feed. <pubDate> is the POST date and there is no event date
+  anywhere in the item — the posts link to luma.com slugs, which is where a date
+  would have to come from. Registered at trust: 10 as a CHANGE SIGNAL, and it
+  must emit zero events no matter how event-shaped the toot text looks.
+
+  Mastodon writes no <title>; the whole post is the description. That is not a
+  broken feed and must not be reported as one.
+-->
+<rss version="2.0"
+     xmlns:webfeeds="http://webfeeds.org/rss/1.0"
+     xmlns:media="http://search.yahoo.com/mrss/">
+  <channel>
+    <title>sudo room (@sudoroom@sfba.social)</title>
+    <description>Public posts from @sudoroom@sfba.social</description>
+    <link>https://sfba.social/@sudoroom</link>
+    <lastBuildDate>Sun, 02 Aug 2026 21:14:03 +0000</lastBuildDate>
+    <item>
+      <link>https://sfba.social/@sudoroom/113900000000000004</link>
+      <guid isPermaLink="true">https://sfba.social/@sudoroom/113900000000000004</guid>
+      <pubDate>Sun, 02 Aug 2026 21:14:03 +0000</pubDate>
+      <description>&lt;p&gt;Mesh night is back Thursday. RSVP: &lt;a href="https://luma.com/sudo-mesh"&gt;luma.com/sudo-mesh&lt;/a&gt;&lt;/p&gt;</description>
+    </item>
+    <item>
+      <link>https://sfba.social/@sudoroom/113900000000000003</link>
+      <guid isPermaLink="true">https://sfba.social/@sudoroom/113900000000000003</guid>
+      <pubDate>Wed, 29 Jul 2026 17:02:11 +0000</pubDate>
+      <description>&lt;p&gt;New laser cutter filter installed. Come cut things.&lt;/p&gt;</description>
+    </item>
+    <item>
+      <link>https://sfba.social/@sudoroom/113900000000000002</link>
+      <guid isPermaLink="true">https://sfba.social/@sudoroom/113900000000000002</guid>
+      <pubDate>Fri, 24 Jul 2026 03:45:00 +0000</pubDate>
+      <description>&lt;p&gt;Omni Commons needs volunteers for the work party.&lt;/p&gt;</description>
+    </item>
+    <item>
+      <link>https://sfba.social/@sudoroom/113900000000000001</link>
+      <guid isPermaLink="true">https://sfba.social/@sudoroom/113900000000000001</guid>
+      <pubDate>Mon, 20 Jul 2026 19:30:00 +0000</pubDate>
+      <description>&lt;p&gt;Reminder: the space is open every Thursday evening.&lt;/p&gt;</description>
+    </item>
+  </channel>
+</rss>

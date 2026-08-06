@@ -205,6 +205,23 @@ class Source(BaseModel):
     # right.
     min_total: int | None = Field(default=None, gt=0)
 
+    # What `<pubDate>` MEANS in this feed. Required for `rss` and forbidden
+    # elsewhere, for the same reason `shape` is required for `json`: the value
+    # changes what the document is, and there is no way to tell by looking.
+    # `pubDate` is the post date in every registered feed except Sudo Room's
+    # /events/feed/, where it is the event start -- and an adapter that guessed
+    # would publish announcement dates as event dates, every one of them wrong
+    # and every one of them plausible. Validated against
+    # pipeline.adapters.rss.PUBDATE_MEANINGS.
+    pubdate_means: str | None = None
+
+    # What an `rss` source is FOR: "events", "change_detection" or "seed_list".
+    # Optional, and the default is `change_detection` -- the only safe default,
+    # because it publishes nothing. `events` additionally requires
+    # `pubdate_means: event_start`; the pairing that would lie is rejected here
+    # rather than discovered in a calendar.
+    rss_mode: str | None = None
+
     label: str | None = None
     trust: int = Field(default=0, ge=0)
 
@@ -257,7 +274,61 @@ class Source(BaseModel):
                 f"adapter {self.adapter!r} takes no shape ({self.shape!r}); "
                 "shape is the 'json' adapter's document map"
             )
+        if self.adapter == "rss":
+            # Imported here rather than at module scope: pipeline.adapters
+            # imports pipeline.config, and a top-level import would be a cycle.
+            from pipeline.adapters.rss import (
+                EVENTS_MODE,
+                EVENT_START,
+                PUBDATE_MEANINGS,
+                RSS_MODES,
+            )
+
+            if not self.pubdate_means:
+                raise ValueError(
+                    "adapter 'rss' requires pubdate_means. Most RSS feeds are NOT "
+                    "event sources: pubDate is when the post was published, not when "
+                    "the event happens, and the two are indistinguishable by "
+                    "inspection. Declaring it per source is the only thing standing "
+                    "between this pipeline and a calendar of announcement dates. "
+                    f"Known values: {', '.join(sorted(PUBDATE_MEANINGS))}"
+                )
+            if self.pubdate_means not in PUBDATE_MEANINGS:
+                raise ValueError(
+                    f"unknown pubdate_means {self.pubdate_means!r}; known values: "
+                    f"{', '.join(sorted(PUBDATE_MEANINGS))}"
+                )
+            if self.rss_mode is not None and self.rss_mode not in RSS_MODES:
+                raise ValueError(
+                    f"unknown rss_mode {self.rss_mode!r}; known values: "
+                    f"{', '.join(sorted(RSS_MODES))}"
+                )
+            if self.rss_mode == EVENTS_MODE and self.pubdate_means != EVENT_START:
+                raise ValueError(
+                    f"rss_mode {EVENTS_MODE!r} requires pubdate_means "
+                    f"{EVENT_START!r}, not {self.pubdate_means!r}. A feed whose "
+                    "pubDate is the post date cannot be an event source, and this "
+                    "pairing is the exact mistake the declaration exists to prevent"
+                )
+        elif self.pubdate_means or self.rss_mode:
+            raise ValueError(
+                f"adapter {self.adapter!r} takes no pubdate_means/rss_mode; they are "
+                "the 'rss' adapter's declaration of what its dates mean"
+            )
         return self
+
+    @property
+    def effective_rss_mode(self) -> str | None:
+        """``rss_mode`` for an ``rss`` source, defaulting to change detection.
+
+        ``None`` for every other adapter. The default is the one that publishes
+        nothing: a feed nobody has classified must not become a calendar.
+        """
+        if self.adapter != "rss":
+            return None
+        from pipeline.adapters.rss import DEFAULT_MODE
+
+        return self.rss_mode or DEFAULT_MODE.value
 
     @property
     def is_todo(self) -> bool:

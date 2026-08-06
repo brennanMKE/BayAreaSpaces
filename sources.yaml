@@ -27,6 +27,16 @@
 #                  is failed as a truncated catalog.
 #   rss            RSS/Atom. Only an event source when items carry a real start
 #                  date; most do not. Otherwise change-detection only.
+#                  REQUIRES `pubdate_means`: `event_start` or `post_date`. There
+#                  is no default and the adapter never guesses - pubDate is the
+#                  POST date in every registered feed except sudo-room's
+#                  /events/feed/, and reading a post date as a start publishes a
+#                  calendar of announcement dates that all look plausible.
+#                  Optional `rss_mode`: `events` (needs pubdate_means:
+#                  event_start), `change_detection` (the default - emits no
+#                  events, reports a liveness signal for health.json), or
+#                  `seed_list` (emits no events, reports item <link> URLs for
+#                  another adapter to follow).
 #   bookwhen_html  server-rendered Bookwhen agenda table (deterministic, no
 #                  browser, no model). Rows are <tr data-hook="agenda_list_item">
 #                  and each carries data-event="ev-{entryid}-{YYYYMMDDHHMMSS}",
@@ -200,6 +210,11 @@ spaces:
       - adapter: rss
         url: https://sudoroom.org/events/feed/
         label: events-rss
+        # THE ONE GENUINE CASE IN THE REGISTRY. Verified 2026-08-05: 1715 items
+        # whose pubDates run forward from 2026-08-06, matching the ICS feed's
+        # event starts rather than any publication schedule.
+        pubdate_means: event_start
+        rss_mode: events
         trust: 40
         verified: true
         notes: >
@@ -208,6 +223,14 @@ spaces:
       - adapter: rss
         url: https://sfba.social/@sudoroom.rss
         label: mastodon
+        pubdate_means: post_date
+        rss_mode: change_detection
+        health:
+          # Emits no events by design, so "went to zero" can never mean anything
+          # here. The liveness signal (item count, newest post, digest) is what
+          # this source is for, and it reaches health.json as raw_count /
+          # last_change / stale_days.
+          allow_zero: true
         trust: 10
         verified: true
         notes: Announcement signal, not an event feed. Links to luma.com slugs.
@@ -309,6 +332,8 @@ spaces:
       - adapter: rss
         url: https://www.thecrucible.org/category/upcoming-events/feed/
         label: public-events-seed
+        pubdate_means: post_date
+        rss_mode: seed_list
         trust: 20
         verified: true
         enabled: false

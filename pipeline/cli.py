@@ -34,12 +34,12 @@ way to be exercised.
 Six decisions worth stating
 ---------------------------
 
-**Unimplemented adapters skip, they do not crash.** Eight of the ten adapter
+**Unimplemented adapters skip, they do not crash.** Nine of the ten adapter
 names in ``sources.yaml`` are implemented today (``ics``, ``gcal_ics``,
 ``tribe_rest``, ``jsonld``, ``embedded_json``, ``json``, ``nextdata``,
-``bookwhen_html``); the other two are issues 0025 and 0028. A
-registry entry naming one of those is reported as skipped with the issue number,
-so a run today produces the Tier A calendar rather than a traceback.
+``bookwhen_html``, ``rss``); the last one is issue 0028. A registry entry naming
+it is reported as skipped with the issue number, so a run today produces the
+Tier A calendar rather than a traceback.
 
 **The model is never load-bearing.** If LM Studio is not answering on
 ``localhost:1234`` the model stages are skipped and Tier A/B is emitted anyway.
@@ -99,6 +99,7 @@ from pipeline.adapters.ics import IcsParse, parse_ics
 from pipeline.adapters.json_doc import parse_json
 from pipeline.adapters.jsonld import parse_jsonld
 from pipeline.adapters.nextdata import parse_nextdata
+from pipeline.adapters.rss import parse_rss
 from pipeline.adapters.tribe_rest import parse_tribe_rest
 from pipeline.carry_forward import CarryForward, apply_carry_forward
 from pipeline.config import (
@@ -281,9 +282,11 @@ class AdapterEntry:
     paginates: bool = False
 
     #: True when the adapter needs the registry entry it came from but makes no
-    #: further requests. ``embedded_json`` (issue 0021) is the case: the blob it
-    #: reads is identified by ``script_id`` in ``sources.yaml``, so it needs the
-    #: ``SourceRef`` and has no use for the ``Fetcher``. Kept apart from
+    #: further requests. Two cases: ``embedded_json`` (issue 0021), whose blob is
+    #: identified by ``script_id`` in ``sources.yaml``, and ``rss`` (issue 0025),
+    #: whose ``pubdate_means`` decides whether the feed's dates are event starts
+    #: at all. Both need the ``SourceRef`` and have no use for the ``Fetcher``.
+    #: Kept apart from
     #: :attr:`paginates` because "wants configuration" and "will make more HTTP
     #: requests" are different promises, and only the second one has to be true
     #: for the rate limiter and ``raw/`` to be in play.
@@ -327,7 +330,11 @@ ADAPTERS: dict[str, AdapterEntry] = {
     # registered consumer, and the "Show more" endpoint answers with executable
     # JavaScript rather than JSON.
     "bookwhen_html": AdapterEntry("bookwhen_html", "0024", parse_bookwhen_html),
-    "rss": AdapterEntry("rss", "0025"),
+    # Configuration-hungry and single-request: `pubdate_means` decides whether
+    # this feed's dates are events at all, and it lives only in the registry —
+    # so the ref goes in and the fetcher does not. A seed list is *reported*,
+    # never followed; the adapter that consumes it (jsonld) does the fetching.
+    "rss": AdapterEntry("rss", "0025", parse_rss, needs_source=True),
     "llm_html": AdapterEntry("llm_html", "0028"),
 }
 

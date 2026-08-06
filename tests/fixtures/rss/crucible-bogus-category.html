@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<!--
+  TRAP 2, verified live 2026-08-05.
+
+  https://www.thecrucible.org/category/this-does-not-exist-zzz/feed/ answers
+  HTTP 404 with **Content-Type: application/rss+xml** over a 1.35 MB HTML error
+  page. Every earlier trap in this registry had a lying body; here the HEADER
+  lies, and a parser that trusted the declared type would hand this to an XML
+  reader, get zero items, and report "the feed is empty".
+
+  Trimmed to a few hundred bytes. The point is the first byte, not the size:
+  looks_like_feed() reads the bytes and reports "html" no matter what the
+  response claimed. The control also confirms /category/upcoming-events/feed/ is
+  genuinely filtered (3 items) rather than falling back to the full list (10).
+-->
+<html lang="en-US">
+<head>
+  <meta charset="UTF-8">
+  <title>Page not found &#8211; The Crucible</title>
+</head>
+<body class="error404">
+  <div id="wrapper">
+    <h1>Nothing found</h1>
+    <p>Sorry, the page you are looking for could not be found.</p>
+    <form role="search" method="get" action="https://www.thecrucible.org/">
+      <input type="search" name="s" placeholder="Search classes" />
+    </form>
+    <ul class="menu">
+      <li><a href="https://www.thecrucible.org/course-search/">Take a class</a></li>
+      <li><a href="https://www.thecrucible.org/events/">Events</a></li>
+    </ul>
+  </div>
+</body>
+</html>

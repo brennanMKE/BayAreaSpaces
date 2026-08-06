@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TRAP 1, verified live 2026-08-05.
+
+  https://www.acemakerspace.org/calendar/feed/ answers **HTTP 404** with a
+  populated 9.8 KB body that is a perfectly valid RSS 2.0 feed. A body-trusting
+  parser ingests it; a status-checking parser drops it; neither of them SEES the
+  disagreement, which is the actual finding.
+
+  Trimmed to three items. The adapter's documented policy is that the status
+  wins — the server is saying this resource does not exist, the canonical events
+  RSS for this site is ?post_type=tribe_events&feed=rss2, and failing here lets
+  issue 0014 republish yesterday's events rather than tonight's nothing. The body
+  is still parsed, so the report can say exactly what was in it.
+-->
+<rss version="2.0">
+  <channel>
+    <title>Events &#8211; Ace Makerspace</title>
+    <link>https://www.acemakerspace.org/calendar/</link>
+    <description>Ace Makerspace events.</description>
+    <lastBuildDate>Wed, 05 Aug 2026 06:00:00 +0000</lastBuildDate>
+    <item>
+      <title>Laser Cutter Basics &amp; Safety</title>
+      <link>https://www.acemakerspace.org/event/laser-basics-2026-08-08/</link>
+      <guid isPermaLink="false">https://www.acemakerspace.org/?post_type=tribe_events&#038;p=7701</guid>
+      <pubDate>Sat, 08 Aug 2026 18:00:00 -0700</pubDate>
+      <description>Required before using the lasers.</description>
+    </item>
+    <item>
+      <title>Textiles Open Studio</title>
+      <link>https://www.acemakerspace.org/event/textiles-open-studio-2026-08-09/</link>
+      <guid isPermaLink="false">https://www.acemakerspace.org/?post_type=tribe_events&#038;p=7702</guid>
+      <pubDate>Sun, 09 Aug 2026 13:00:00 -0700</pubDate>
+      <description>Drop in and sew.</description>
+    </item>
+    <item>
+      <title>Metal Shop Orientation</title>
+      <link>https://www.acemakerspace.org/event/metal-orientation-2026-08-12/</link>
+      <guid isPermaLink="false">https://www.acemakerspace.org/?post_type=tribe_events&#038;p=7703</guid>
+      <pubDate>Wed, 12 Aug 2026 18:30:00 -0700</pubDate>
+      <description>Required before using the metal shop.</description>
+    </item>
+  </channel>
+</rss>

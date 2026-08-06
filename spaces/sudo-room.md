@@ -138,6 +138,8 @@ Only sources personally fetched and confirmed on 2026-08-05.
       - adapter: rss
         url: https://sudoroom.org/events/feed/
         label: events-rss
+        pubdate_means: event_start
+        rss_mode: events
         trust: 40
         verified: true
         notes: >
@@ -146,6 +148,10 @@ Only sources personally fetched and confirmed on 2026-08-05.
       - adapter: rss
         url: https://sfba.social/@sudoroom.rss
         label: mastodon
+        pubdate_means: post_date
+        rss_mode: change_detection
+        health:
+          allow_zero: true
         trust: 10
         verified: true
         notes: Announcement signal, not an event feed. Links to luma.com slugs.

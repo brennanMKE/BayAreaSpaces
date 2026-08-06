@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  https://sudoroom.org/wiki/Special:RecentChanges?feed=atom as surveyed
+  2026-08-05: valid Atom, updated 2026-08-05T20:25:24Z. The timestamps below are
+  shifted back one day so they sit before the 03:15 run this suite pins, which is
+  the ordinary case anyway: the run happens overnight and the edits happened
+  yesterday.
+
+  Atom, not RSS, and the differences are all the ones that break a parser written
+  for one of them: the date is <updated>/<published> in RFC 3339 rather than
+  <pubDate> in RFC 822, the link is an attribute rather than element text, the
+  identity is <id>, and there is a <link rel="self"> that must NOT end up in a
+  seed list. Change detection only — a wiki edit is not an event.
+-->
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <id>https://sudoroom.org/wiki/Special:RecentChanges</id>
+  <title>sudo room - Recent changes [en]</title>
+  <link rel="self" type="application/atom+xml" href="https://sudoroom.org/wiki/Special:RecentChanges?feed=atom"/>
+  <link rel="alternate" type="text/html" href="https://sudoroom.org/wiki/Special:RecentChanges"/>
+  <updated>2026-08-04T20:25:24Z</updated>
+  <subtitle>Track the most recent changes to the wiki in this feed.</subtitle>
+  <entry>
+    <id>https://sudoroom.org/wiki/Meeting_Notes?diff=41022</id>
+    <title>Meeting Notes</title>
+    <link rel="alternate" type="text/html" href="https://sudoroom.org/wiki/Meeting_Notes?diff=41022"/>
+    <updated>2026-08-04T20:25:24Z</updated>
+    <published>2026-08-04T20:25:24Z</published>
+    <summary type="html">Minutes from the weekly meeting.</summary>
+    <author><name>sudo</name></author>
+    <category term="Meetings"/>
+  </entry>
+  <entry>
+    <id>https://sudoroom.org/wiki/Mesh?diff=41019</id>
+    <title>Mesh</title>
+    <link rel="alternate" type="text/html" href="https://sudoroom.org/wiki/Mesh?diff=41019"/>
+    <updated>2026-07-31T02:11:00Z</updated>
+    <published>2026-07-31T02:11:00Z</published>
+    <summary type="html">Node list refreshed.</summary>
+    <author><name>mesh-admin</name></author>
+  </entry>
+  <entry>
+    <id>https://sudoroom.org/wiki/Laser?diff=40877</id>
+    <title>Laser</title>
+    <link rel="alternate" type="text/html" href="https://sudoroom.org/wiki/Laser?diff=40877"/>
+    <updated>2026-05-31T11:04:19-07:00</updated>
+    <summary type="html">Filter replacement documented.</summary>
+  </entry>
+</feed>

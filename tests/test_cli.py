@@ -11,10 +11,10 @@ open a socket to ``localhost:1234``.
 
 What is being defended:
 
-**A run today produces a calendar.** Two of the ten adapter names in
-``sources.yaml`` are still issues 0025 and 0028. Meeting one must skip with its
-issue number, not end the run — otherwise Phase 1 delivers nothing until Phase 2
-is finished.
+**A run today produces a calendar.** One of the ten adapter names in
+``sources.yaml`` is still issue 0028. Meeting it must skip with its issue
+number, not end the run — otherwise Phase 1 delivers nothing until Phase 2 is
+finished.
 
 **Nothing publishes by accident.** ``--dry-run`` writes to ``out/.staging/`` and
 ``out/calendar.ics`` is not touched. Neither is a single-space run allowed to
@@ -68,14 +68,23 @@ EXPECTED_ENABLED = 26
 EXPECTED_DISABLED = 4
 EXPECTED_TODO = 1
 #: enabled, not TODO, and naming an adapter that exists today (ics, gcal_ics,
-#: tribe_rest, jsonld, embedded_json, json, nextdata, bookwhen_html). Issue
+#: tribe_rest, jsonld, embedded_json, json, nextdata, bookwhen_html, rss). Issue
 #: 0019 added Ace's REST feed; issue 0020 added Ace's JSON-LD calendar page and
 #: The Box Shop's two-step Squarespace source; issue 0021 added The Crucible's
 #: course-catalog blob; issue 0022 added The Crucible's WooCommerce Store API
 #: and Maker Nexus's Amilia cache; issue 0023 added the two enabled Eventbrite
 #: organizer pages (The Crucible's and Humanmade's); issue 0024 added Sequoia
-#: Fabrica's Bookwhen agenda, which is that space's primary public calendar.
-EXPECTED_RUNNABLE = 22
+#: Fabrica's Bookwhen agenda, which is that space's primary public calendar;
+#: issue 0025 added Sudo Room's two enabled RSS sources. The Crucible's seed-list
+#: feed is `enabled: false` and stays out of this count.
+EXPECTED_RUNNABLE = 24
+
+#: Runnable sources that emit **no events by design**. Sudo Room's Mastodon feed
+#: is `rss_mode: change_detection`: it reports a liveness signal for health.json
+#: and contributes nothing to the calendar, so it is runnable, healthy and zero
+#: all at once. Kept as a named constant because "22 sources ran and 21 events
+#: came out" is otherwise a number nobody can check.
+EXPECTED_CHANGE_DETECTION_ONLY = 1
 
 ICS_BODY = b"""BEGIN:VCALENDAR\r
 VERSION:2.0\r
@@ -220,6 +229,34 @@ def jsonld_seed_body(url: httpx.URL) -> bytes:
         "<item><title>Salon</title>"
         f"<link>https://{url.host}/events/salon</link>"
         "<pubDate>Mon, 29 Jun 2026 19:04:11 +0000</pubDate>"
+        "</item></channel></rss>"
+    ).encode("utf-8")
+
+
+def rss_body(url: httpx.URL) -> bytes:
+    """One RSS 2.0 item — the ``rss`` counterpart (issue 0025).
+
+    Sudo Room has the registry's only two enabled ``rss`` sources and they are
+    read *differently* from the same shape of document: ``/events/feed/`` is
+    declared ``pubdate_means: event_start`` and yields one event, while the
+    Mastodon feed is ``change_detection`` and yields none no matter what its
+    dates look like. Serving both from one body is the point — the difference is
+    the registry's, not the document's.
+    """
+    digest = hashlib.sha1(str(url).encode()).hexdigest()[:8]
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<rss version="2.0"><channel>'
+        "<title>Feed</title>"
+        f"<link>{url}</link>"
+        "<description>Test feed.</description>"
+        "<lastBuildDate>Tue, 04 Aug 2026 23:00:00 +0000</lastBuildDate>"
+        "<item>"
+        f"<title>Mesh Night {digest}</title>"
+        f"<link>https://{url.host}/events/mesh-{digest}/</link>"
+        f"<guid isPermaLink='false'>rss-{digest}</guid>"
+        "<pubDate>Thu, 13 Aug 2026 18:00:00 -0700</pubDate>"
+        "<description>Come make something.</description>"
         "</item></channel></rss>"
     ).encode("utf-8")
 
@@ -401,6 +438,17 @@ def calendar_transport(body: bytes | None = None) -> httpx.MockTransport:
                 content=tribe_body(url),
                 headers={"Content-Type": "application/json; charset=utf-8"},
             )
+        if body is None and (url.host == "sfba.social" or url.path.endswith("/feed/")):
+            # Sudo Room's two `rss` sources. Ordered before the JSON-LD route
+            # because `/events/feed/` also starts with `/events/`, and an RSS
+            # source handed an HTML page would report a drifted source — which
+            # would leave the run's counts measuring an adapter correctly
+            # rejecting a payload it was never pointed at.
+            return httpx.Response(
+                200,
+                content=rss_body(url),
+                headers={"Content-Type": "application/rss+xml; charset=utf-8"},
+            )
         if body is None and url.params.get("format") == "rss":
             # The Box Shop's seed feed. Its links point at /events/<slug> below.
             return httpx.Response(
@@ -576,7 +624,7 @@ def test_every_registry_adapter_has_a_dispatch_entry():
     assert set(ADAPTERS) == set(KNOWN_ADAPTERS)
 
 
-def test_eight_of_the_ten_adapters_are_implemented_today():
+def test_nine_of_the_ten_adapters_are_implemented_today():
     assert implemented_adapters() == {
         "ics",
         "gcal_ics",
@@ -586,22 +634,27 @@ def test_eight_of_the_ten_adapters_are_implemented_today():
         "json",
         "nextdata",
         "bookwhen_html",
+        "rss",
     }
 
 
-def test_one_adapter_needs_its_registry_entry_but_not_the_fetcher():
-    """``embedded_json`` (issue 0021) reads a blob named by ``script_id``.
+def test_two_adapters_need_their_registry_entry_but_not_the_fetcher():
+    """``embedded_json`` (issue 0021) reads a blob named by ``script_id``, and
+    ``rss`` (issue 0025) reads dates whose *meaning* is ``pubdate_means``.
 
-    It makes no further requests, so it gets the ``SourceRef`` and not the
+    Neither makes further requests, so both get the ``SourceRef`` and not the
     ``Fetcher``: "wants configuration" and "will make more HTTP requests" are
     different promises, and only the second one puts the rate limiter and
-    ``raw/`` in play.
+    ``raw/`` in play. ``rss`` reports a seed list; it never follows one.
     """
-    entry = ADAPTERS["embedded_json"]
-    assert entry.needs_source is True
-    assert entry.paginates is False
+    for name in ("embedded_json", "rss"):
+        entry = ADAPTERS[name]
+        assert entry.needs_source is True
+        assert entry.paginates is False
     assert not any(
-        other.needs_source for name, other in ADAPTERS.items() if name != "embedded_json"
+        other.needs_source
+        for name, other in ADAPTERS.items()
+        if name not in ("embedded_json", "rss")
     )
 
 
@@ -625,7 +678,6 @@ def test_three_adapters_need_the_fetcher_for_follow_up_requests():
 
 def test_pending_adapters_name_the_issue_that_implements_them():
     expected = {
-        "rss": "0025",
         "llm_html": "0028",
     }
     for name, issue in expected.items():
@@ -674,8 +726,10 @@ def test_validate_names_implemented_and_pending_adapters(env, tmp_path: Path, ca
     assert "implemented (issue 0021)" in out  # embedded_json
     assert "implemented (issue 0022)" in out  # json
     assert "implemented (issue 0023)" in out  # nextdata
-    assert "implemented (issue 0024)" in out  # bookwhen_html, since this issue
-    assert "NOT implemented (issue 0025)" in out  # rss
+    assert "implemented (issue 0024)" in out  # bookwhen_html
+    assert "implemented (issue 0025)" in out  # rss, since this issue
+    assert "NOT implemented (issue 0025)" not in out
+    assert "NOT implemented (issue 0028)" in out  # llm_html
     assert "TODO (issue 0002)" in out  # sequoia-fabrica bookwhen-public
     assert "disabled" in out
 
@@ -762,16 +816,31 @@ def test_dry_run_publishes_every_runnable_source(env, tmp_path: Path, registry):
 
     assert len(report.records) == EXPECTED_SOURCES
     assert len(report.ran) == EXPECTED_RUNNABLE
-    # One VEVENT per feed, every one inside the horizon.
-    assert all(record.horizon_count == 1 for record in report.ran)
 
-    # Three of the twenty-two carry a `location_contains` filter that the
+    # One item per feed, every one inside the horizon — except the sources that
+    # emit no events by design. Sudo Room's Mastodon feed is `change_detection`:
+    # it parsed four items, reported a liveness signal, and contributed zero
+    # events, which is `ok` and is exactly what it is registered to do.
+    silent = [record for record in report.ran if record.horizon_count == 0]
+    assert len(silent) == EXPECTED_CHANGE_DETECTION_ONLY
+    assert [record.key for record in silent] == ["sudo-room:mastodon"]
+    assert all(record.status == "ok" and record.raw_count > 0 for record in silent)
+    assert all(
+        record.horizon_count == 1 for record in report.ran if record not in silent
+    )
+
+    # Three of the runnable sources carry a `location_contains` filter that the
     # fixture's Oakland address does not match, so they legitimately keep
     # nothing. Filters drop events silently — the point of asserting on the
-    # count rather than on 22 is that the drop shows up here if it changes.
+    # count rather than on a bare number is that the drop shows up here if it
+    # changes.
     filtered_out = sum(record.filtered_out_count for record in report.ran)
     assert filtered_out == 3
-    assert report.event_count == EXPECTED_RUNNABLE - filtered_out == 19
+    assert (
+        report.event_count
+        == EXPECTED_RUNNABLE - filtered_out - EXPECTED_CHANGE_DETECTION_ONLY
+        == 20
+    )
     assert report.exit_code == EXIT_OK
     assert report.published is True
 

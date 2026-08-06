@@ -247,6 +247,8 @@ Because there is exactly one venue and no per-event location data, **do not writ
       - adapter: rss
         url: https://www.thecrucible.org/category/upcoming-events/feed/
         label: public-events-seed
+        pubdate_means: post_date
+        rss_mode: seed_list
         trust: 20
         verified: true
         enabled: false
